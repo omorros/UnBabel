@@ -21,12 +21,6 @@ OffBabel teaches a language two ways, and it runs entirely on the device with no
 
 Everything (speech recognition, the tutor model, sign recognition, memory) runs locally. Your learning data never leaves the device.
 
-<p align="center">
-  <img src="docs/img/mascot-speak.png" alt="Speak mode" height="150">
-  &nbsp;&nbsp;&nbsp;
-  <img src="docs/img/mascot-sign.png" alt="Sign mode" height="150">
-</p>
-
 ## Screenshots
 
 | Home | Speak |
