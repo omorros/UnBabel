@@ -7,6 +7,7 @@ the server still boots on a machine without them (UI dev on a box with no mediap
 import asyncio
 import collections
 import threading
+import time
 
 from .. import config, srs
 
@@ -60,14 +61,38 @@ class SignEngine:
         recent = collections.deque(maxlen=config.DEBOUNCE_FRAMES)
         last_stable = None
         landmarker = create_landmarker()
-        cap = cv2.VideoCapture(config.CAMERA_INDEX)
 
+        # Prefer the Reachy camera — the same feed the Sign screen shows — so recognition runs on the
+        # exact video the user sees. Registering as a stream client keeps rpicam running and shares
+        # the one SSH stream with the browser <img> via the streamer's refcount. Fall back to the
+        # local webcam if the robot feed never produces a frame (laptop-only dev, robot offline).
+        from ..reachy_video import streamer as reachy
+        reachy.add_client()
+        use_reachy = self._wait_for_first_frame(reachy)
+        cap = None
+        if not use_reachy:
+            reachy.remove_client()
+            cap = cv2.VideoCapture(config.CAMERA_INDEX)
+        self._emit(loop, emit, {"type": "status", "sign_source": "reachy" if use_reachy else "webcam"})
+
+        last_jpeg = None
         try:
             while not self._stop.is_set():
-                ok, frame = cap.read()
-                if not ok:
-                    break
-                frame = cv2.flip(frame, 1)
+                if use_reachy:
+                    jpeg = reachy.get_latest_frame()
+                    if jpeg is None or jpeg is last_jpeg:  # no new frame yet; yield without spinning
+                        if self._stop.wait(0.02):
+                            break
+                        continue
+                    last_jpeg = jpeg
+                    frame = cv2.imdecode(np.frombuffer(jpeg, np.uint8), cv2.IMREAD_COLOR)
+                    if frame is None:
+                        continue
+                else:
+                    ok, frame = cap.read()
+                    if not ok:
+                        break
+                frame = cv2.flip(frame, 1)  # match the mirrored frames the model was trained on
                 hands = to_hands(detect(landmarker, frame))
 
                 label, conf = "-", 0.0
@@ -101,5 +126,18 @@ class SignEngine:
                 elif not stable:
                     last_stable = None
         finally:
-            cap.release()
+            if use_reachy:
+                reachy.remove_client()  # last viewer leaving stops the shared SSH stream
+            if cap is not None:
+                cap.release()
             landmarker.close()
+
+    def _wait_for_first_frame(self, reachy, timeout=4.0):
+        """Give the Reachy stream a moment to deliver its first JPEG. Returns True if a frame
+        arrived within the timeout, False so the caller can fall back to the local webcam."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not self._stop.is_set():
+            if reachy.get_latest_frame() is not None:
+                return True
+            self._stop.wait(0.1)
+        return False
