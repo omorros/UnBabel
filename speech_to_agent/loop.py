@@ -54,6 +54,8 @@ def _show(result):
         print(f"  fix  > you said \"{corr['wrong']}\"  ->  try \"{corr['right']}\"")
         if corr.get("note"):
             print(f"         ({corr['note']})")
+    else:
+        print("  ✓  no mistakes")
 
 
 def _speak_reply(text):
@@ -66,6 +68,21 @@ def _speak_reply(text):
         say_reachy(text, language=_lang)
     except Exception as e:  # noqa: BLE001
         print(f"  (robot offline — showing text only: {e})")
+
+
+def _think_and_respond(text):
+    """Run the agent while Reachy does its gentle 'thinking' idle motion — turning the latency
+    gap into character. Motion stops (and returns to neutral) before the reply is spoken."""
+    print("\n  Reachy is thinking…")
+    motion = None
+    if _speak:  # only move the robot when robot output is enabled (toggle with 'r')
+        from .reachy_motion import thinking as motion
+        motion.start()
+    try:
+        return respond(text, _lang)
+    finally:
+        if motion:
+            motion.stop()
 
 
 def main():
@@ -108,7 +125,7 @@ def main():
             text = cmd
 
         try:
-            result = respond(text, _lang)
+            result = _think_and_respond(text)
         except Exception as e:  # noqa: BLE001
             print(f"  agent error: {e}")
             continue

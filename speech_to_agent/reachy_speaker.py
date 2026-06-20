@@ -116,7 +116,7 @@ def synthesize_to_wav(
     *,
     language: Language = "en",
     voice: str | None = None,
-    gain: float = 2.0,
+    gain: float = 1.5,
 ) -> float:
     voice = voice or DEFAULT_VOICES.get(language, "Samantha")
 
@@ -157,7 +157,7 @@ def say_reachy(
     api_base: str = "http://localhost:8000",
     voice: str | None = None,
     volume: int = 100,
-    gain: float = 2.0,
+    gain: float = 1.5,
     wobble: bool = True,
     wait: bool = True,
     remote_filename: str = "reachy_speech.wav",
@@ -185,21 +185,27 @@ def say_reachy(
     set_reachy_volume(api_base, volume)
     upload_sound(api_base, wav_path, remote_filename)
 
-    try:
-        if wobble:
-            set_wobbling(api_base, True)
+    # Take the single motion lock so the 'thinking' loop (or future head tracking) can't move the
+    # robot while it speaks — speaking owns the body via daemon wobbling. Best-effort (2s) so a
+    # stuck owner never blocks speech. See reachy_motion.claim.
+    from .reachy_motion import claim
 
-        play_sound(api_base, remote_filename)
+    with claim(timeout=2.0):
+        try:
+            if wobble:
+                set_wobbling(api_base, True)
 
-        if wait:
-            time.sleep(math.ceil(duration) + 0.5)
+            play_sound(api_base, remote_filename)
 
-    finally:
-        if wobble:
-            try:
-                set_wobbling(api_base, False)
-            except Exception:
-                pass
+            if wait:
+                time.sleep(math.ceil(duration) + 0.5)
+
+        finally:
+            if wobble:
+                try:
+                    set_wobbling(api_base, False)
+                except Exception:
+                    pass
 
     return duration
 
@@ -213,7 +219,7 @@ if __name__ == "__main__":
     parser.add_argument("--voice", default=None)
     parser.add_argument("--api-base", default="http://localhost:8000")
     parser.add_argument("--volume", type=int, default=100)
-    parser.add_argument("--gain", type=float, default=2.0)
+    parser.add_argument("--gain", type=float, default=1.5)
     parser.add_argument("--no-wobble", action="store_true")
     parser.add_argument("--no-wait", action="store_true")
 

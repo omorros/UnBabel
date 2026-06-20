@@ -73,22 +73,45 @@ def tutor_turn(history, language, scenario=None, due_items=None):
     """history: list of {role, content} including the latest user/directive turn.
     Returns {reply, translation, correction|None, hits: [...]}.
     """
+    from speech_to_agent.agent import _parse_json  # reuse the proven robust JSON ladder (strips <think>/fences)
+
     client = get_llm()
     sys = build_system_prompt(language, scenario, due_items or [])
     messages = [{"role": "system", "content": sys}] + history
     kwargs = dict(model=config.LLM_MODEL, messages=messages, temperature=0.3)
+    # reasoning_effort="none" stops Gemma/Qwen3 from "thinking" first (which eats the token budget
+    # and returns empty content). Exo honors it; harmless on servers that ignore it.
+    if config.LLM_REASONING_EFFORT:
+        kwargs["extra_body"] = {"reasoning_effort": config.LLM_REASONING_EFFORT}
     try:
-        # force valid JSON (Ollama + most OpenAI-compatible servers honor this); some endpoints
-        # (e.g. older Exo builds) may not, so fall back to a plain call.
+        # force valid JSON (Ollama + most OpenAI-compatible servers honor this); Exo ignores it, so
+        # we also parse robustly below.
         resp = client.chat.completions.create(response_format={"type": "json_object"}, **kwargs)
     except Exception:  # noqa: BLE001
         resp = client.chat.completions.create(**kwargs)
     raw = resp.choices[0].message.content or ""
-    data = _extract_json(raw) or {"reply": raw.strip()}
+    data = _parse_json(raw)
+    if not isinstance(data, dict):
+        data = {"reply": (raw or "").strip()}
     data.setdefault("reply", "")
     data.setdefault("translation", "")
     data.setdefault("correction", None)
     data.setdefault("hits", [])
+
+    # Reliability: the single-call tutor often misses a grammar mistake while juggling
+    # reply+translation+hits. If it returned no correction, double-check the learner's last REAL
+    # utterance with speech_to_agent's dedicated corrector (proven, with the wrong==right guard).
+    # Skip directives (the opening/help prompts are not learner speech).
+    if not data.get("correction"):
+        last_user = next((m["content"] for m in reversed(history) if m.get("role") == "user"), "")
+        if last_user and last_user not in (OPENING_DIRECTIVE, HELP_DIRECTIVE):
+            try:
+                from speech_to_agent.agent import _correct
+                c = _correct(last_user, LANG_NAMES.get(language, "Spanish"))
+                if c:
+                    data["correction"] = c
+            except Exception:  # noqa: BLE001
+                pass
     return data
 
 
@@ -101,6 +124,12 @@ def _get_whisper():
         from faster_whisper import WhisperModel
         _WHISPER = WhisperModel(config.WHISPER_SIZE, device="cpu", compute_type="int8")
     return _WHISPER
+
+
+def warm_whisper():
+    """Pre-load the Whisper model so the FIRST conversation utterance isn't slow (the model load
+    happens up front when the mic starts, not mid-turn)."""
+    _get_whisper()
 
 
 def transcribe(audio, language):

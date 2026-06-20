@@ -42,6 +42,10 @@ TARGET_SR = 16000                              # Whisper expects 16kHz mono floa
 _mic = os.environ.get("OFFBABEL_MIC")
 MIC_DEVICE = int(_mic) if (_mic and _mic.isdigit()) else _mic
 
+# ---- Reachy robot daemon (HTTP) -----------------------------------------------------------
+# Reach it via an SSH tunnel:  ssh -N -L 8000:127.0.0.1:8000 pollen@reachy-mini.local
+REACHY_API_BASE = os.environ.get("OFFBABEL_REACHY_API", "http://localhost:8000")
+
 # ---- Languages (Spanish showcase, English, Czech bonus — PRD section 3) --------------------
 DEFAULT_LANG = os.environ.get("OFFBABEL_LANG", "es")
 LANG_NAMES = {"es": "Spanish", "en": "English", "cs": "Czech"}

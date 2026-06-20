@@ -21,28 +21,32 @@ class SpeakListener:
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, on_utterance, language="es"):
-        """on_utterance(text) is called for each detected utterance."""
+    def start(self, on_utterance, language="es", on_speech_end=None):
+        """on_utterance(text) is called after each detected utterance (text may be "" if STT found
+        nothing). on_speech_end() fires the moment speech ends, BEFORE transcription — use it to
+        start the 'thinking' motion so the robot reacts during the STT+LLM gap, not after it."""
         if self.running:
             return
         self._stop.clear()
         self._thread = threading.Thread(
-            target=self._run, args=(on_utterance, language), daemon=True
+            target=self._run, args=(on_utterance, language, on_speech_end), daemon=True
         )
         self._thread.start()
 
     def stop(self):
         self._stop.set()
 
-    def _run(self, on_utterance, language):
+    def _run(self, on_utterance, language, on_speech_end=None):
         try:
             import numpy as np
             import sounddevice as sd
             from . import speak
+            from speech_to_agent.record import _preferred_input
         except Exception as e:  # noqa: BLE001
             print("mic listener deps missing:", e)
             return
 
+        device = _preferred_input()  # built-in mic; avoids the AirPods-zeros default (None = system default)
         block = int(SAMPLE_RATE * BLOCK_SEC)
         threshold = float(os.environ.get("OFFBABEL_MIC_THRESHOLD", "0.015"))
         sil_limit = int(0.8 / BLOCK_SEC)   # ~0.8s of silence ends an utterance
@@ -53,7 +57,7 @@ class SpeakListener:
 
         try:
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32",
-                                blocksize=block) as stream:
+                                blocksize=block, device=device) as stream:
                 while not self._stop.is_set():
                     data, _ = stream.read(block)
                     chunk = data[:, 0]
@@ -69,12 +73,16 @@ class SpeakListener:
                             audio = np.concatenate(buf)
                             buf, speaking, silence = [], False, 0
                             if len(audio) >= min_speech * block:
+                                if on_speech_end:
+                                    try:
+                                        on_speech_end()  # start 'thinking' motion now (covers STT+LLM)
+                                    except Exception:  # noqa: BLE001
+                                        pass
                                 try:
                                     text = speak.transcribe(audio, language)
                                 except Exception as e:  # noqa: BLE001
                                     print("transcribe failed:", e)
                                     text = ""
-                                if text:
-                                    on_utterance(text)
+                                on_utterance(text)  # always call; server stops the motion if text is empty
         except Exception as e:  # noqa: BLE001
             print("mic listener stopped:", e)

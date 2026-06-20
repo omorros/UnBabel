@@ -155,14 +155,20 @@ async def handle(msg):
 
     elif t == "conversation_start":
         loop = asyncio.get_running_loop()
+        from speech_to_agent.reachy_motion import thinking
+        # pre-load Whisper so the FIRST utterance isn't slow (model load up front, not mid-turn)
+        asyncio.create_task(asyncio.to_thread(speak.warm_whisper))
         listener.start(
             lambda text: asyncio.run_coroutine_threadsafe(_voice_turn(text), loop),
             session.get("lang", "es"),
+            on_speech_end=thinking.start,  # 'thinking' motion the moment you stop talking (covers STT+LLM)
         )
         await emote("listening")
 
     elif t == "conversation_stop":
         listener.stop()
+        from speech_to_agent.reachy_motion import thinking
+        await asyncio.to_thread(thinking.stop)  # clean up any in-flight 'thinking' motion on pause
         await emote("idle")
 
     elif t == "sign_demo_letter":
@@ -179,6 +185,11 @@ async def handle(msg):
 
 async def _voice_turn(text):
     """A transcribed mic utterance -> the same path as a typed message."""
+    if not text or not text.strip():
+        # speech ended but nothing transcribed -> stop the 'thinking' motion started on_speech_end
+        from speech_to_agent.reachy_motion import thinking
+        await asyncio.to_thread(thinking.stop)
+        return
     await hub.send({"type": "transcript", "role": "user", "text": text})
     session["history"].append({"role": "user", "content": text})
     session["turn"] = session.get("turn", 0) + 1
@@ -186,13 +197,13 @@ async def _voice_turn(text):
 
 
 async def _tts(text, lang):
-    """Best-effort speech output. No-op until speak_tts (Piper) is wired on the Mac."""
+    """Speak the tutor's reply aloud through Reachy (macOS say -> ffmpeg -> daemon, with wobble).
+    Best-effort: a missing tunnel/robot must never break the session."""
     if not text:
         return
     try:
-        await asyncio.to_thread(speak.speak_tts, text, lang)
-    except NotImplementedError:
-        pass
+        from speech_to_agent.reachy_speaker import say_reachy
+        await asyncio.to_thread(say_reachy, text, language=lang)
     except Exception as e:  # noqa: BLE001
         print("tts failed (ignored):", e)
 
@@ -259,12 +270,18 @@ async def _run_tutor(help_turn=False):
     scn = curriculum.scenario(session.get("scenario")) if session.get("scenario") else None
 
     await emote("speaking")
+    # Reachy does its gentle 'thinking' idle motion while the LLM generates, then returns its head
+    # to level before speaking. The single-owner motion lock keeps it from fighting the TTS wobble.
+    from speech_to_agent.reachy_motion import thinking
+    thinking.start()
     data = None
     try:
         due = [i["prompt"] for i in srs.due_items(mode="speak", limit=3)]
         data = await asyncio.to_thread(speak.tutor_turn, session["history"], lang, scn, due)
     except Exception as e:  # noqa: BLE001
         print("tutor LLM unavailable, stub:", e)
+    finally:
+        await asyncio.to_thread(thinking.stop)  # stop + return head to level, off the event loop
     if not data or not data.get("reply"):
         data = _stub_reply(lang, scn, help_turn)
 

@@ -42,23 +42,28 @@ Only fix real grammar or word-choice mistakes. Never invent an error."""
 
 TUTOR_SYS = """You are Reachy Mini, a friendly robot language tutor having a spoken conversation with a beginner (level A2-B1) who is learning {lang}. /no_think
 Personality: warm, calm, patient, and encouraging — a small touch of gentle friendliness, never sarcastic.
-Teaching style: like a kind human tutor, you chat naturally in {lang} and keep the learner talking.
+Teaching style: like a kind human tutor, you chat naturally in {lang} and keep the learner talking. Your reply is SPOKEN aloud, so it must flow as ONE natural turn.
+
+You are told whether the learner's last sentence had a mistake:
+- If there WAS a mistake: begin with ONE short, encouraging correction in {lang} that models the right form (e.g. "Casi, decimos \\"...\\"."), then react and continue.
+- If there was NO mistake: begin with a brief affirmation in {lang} (e.g. "¡Perfecto!", "¡Muy bien!"), then react and continue.
 
 RULES:
 - Reply ONLY in {lang}. Never use any other language, whatever language the learner used.
-- 1-2 short sentences, under 25 words. Use simple, common vocabulary a beginner knows.
-- React naturally to what the learner said, then end with ONE simple question to keep the conversation going.
-- Be encouraging; never criticize. Do NOT mention grammar, corrections, mistakes, or that you are an AI.
-- Your {lang} must be grammatically PERFECT and natural — the learner will hear it and repeat after you.
-- Keep any humor tiny and simple enough for a beginner; clarity always comes first.
+- After the correction/affirmation, react in ONE short sentence and end with ONE simple question. Keep the whole reply under ~30 words.
+- Use simple, common vocabulary a beginner knows. Be encouraging; never harsh. Do NOT say you are an AI.
+- Your own {lang} must be grammatically PERFECT and natural — the learner will hear it and repeat after you.
 
-Return ONLY a JSON object: {{"reply": "<your reply, in {lang}>"}}"""
+Return ONLY a JSON object: {{"reply": "<your spoken reply, in {lang}>"}}"""
 
-VERIFY_SYS = """You are a strict {lang} grammar checker for a language tutor. /no_think
-The input is a tutor's reply that will be spoken aloud to a beginner learner (A2-B1 level).
-Check the reply for ANY grammar mistakes, word-choice errors, gender agreement errors, article misuse, incorrect prepositions, or any other errors in {lang}.
-Return ONLY a JSON object: {{"verified": "<corrected reply if any errors, or null if perfect>"}}
-If the reply is already grammatically perfect and natural in {lang}, return EXACTLY: {{"verified": null}}"""
+VERIFY_SYS = """You are a careful {lang} proofreader for a language tutor. /no_think
+The input is the tutor's FULL spoken reply to a beginner (A2-B1). It may contain a short correction clause (with the learner's mistake quoted), a reaction, and a final question.
+Return the SAME reply with only MINIMAL fixes to the tutor's own {lang} grammar:
+- Keep EVERY part — the correction clause, the reaction, AND the final question. Do NOT shorten, summarize, merge, or delete anything.
+- NEVER alter text inside quotation marks (it is a deliberate example of the learner's error).
+- Change ONLY genuine grammar/word-choice/agreement errors in the tutor's own words.
+Return ONLY a JSON object: {{"verified": "<the FULL reply with minimal fixes, or null if already perfect>"}}
+If it is already perfect, return EXACTLY: {{"verified": null}}"""
 
 
 def respond(utterance, language=None):
@@ -70,20 +75,36 @@ def respond(utterance, language=None):
 
     correction = _correct(utterance, lang)        # step 1
     reply = _reply(utterance, lang, correction)   # step 2
-    verified = _verify(reply, lang)               # step 3
-    if verified:
-        reply = verified
+    # step 3 only when there's a correction: those replies quote the learner's error and are the
+    # higher-risk ones to get perfect. A plain affirmation reply rarely needs it, so skipping it
+    # saves one LLM call on no-mistake turns. (To always verify, drop the `if correction:`.)
+    if correction:
+        verified = _verify(reply, lang)
+        if verified:
+            reply = verified
     return {"reply": reply, "correction": correction}
 
 
 def _verify(reply, lang):
-    """Step 3: verify tutor's reply is grammatically perfect. Returns corrected string or None."""
+    """Step 3: minimally fix the tutor's reply grammar. Returns a corrected string, or None to
+    keep the original. Guarded: a tiny verifier sometimes truncates the reply to a fragment, so we
+    reject any replacement that drops a lot of content or loses the question."""
     raw = _chat(VERIFY_SYS.format(lang=lang), reply, config.LLM_TEMP_CORRECTOR)
     data = _parse_json(raw) or {}
     verified = data.get("verified")
-    if verified and isinstance(verified, str) and verified.strip():
-        return verified.strip()
-    return None  # null or no correction needed -> keep original reply
+    if not (verified and isinstance(verified, str) and verified.strip()):
+        return None
+    verified = verified.strip()
+    if len(verified) < 0.7 * len(reply):
+        return None  # truncated the reply -> keep the original
+    if ("?" in reply or "¿" in reply) and ("?" not in verified):
+        return None  # dropped the follow-up question -> keep the original
+    return verified
+
+
+def _norm(s):
+    """Normalize for comparison: ignore case, surrounding punctuation, and extra spaces."""
+    return " ".join((s or "").split()).strip(" .,!¡¿?;:").casefold()
 
 
 def _correct(utterance, lang):
@@ -91,16 +112,23 @@ def _correct(utterance, lang):
     data = _parse_json(raw) or {}
     corr = data.get("correction")
     if isinstance(corr, dict) and corr.get("wrong") and corr.get("right"):
+        # tiny models often "correct" a perfect sentence by echoing it (wrong == right) — drop those
+        if _norm(corr["wrong"]) == _norm(corr["right"]):
+            return None
         return {"wrong": corr["wrong"], "right": corr["right"], "note": corr.get("note", "")}
     return None  # null, malformed, or "no mistake" -> no correction strip
 
 
 def _reply(utterance, lang, correction):
-    user = utterance
+    # Tell the tutor whether to correct or affirm; it weaves that into the spoken reply.
     if correction:
-        # context-only nudge; the tutor must NOT read the correction back to the learner
-        user += (f'\n(Context, do not mention: the learner said "{correction["wrong"]}", '
-                 f'better is "{correction["right"]}".)')
+        note = f' ({correction["note"]})' if correction.get("note") else ""
+        user = (f'The learner said: "{utterance}".\n'
+                f'It had ONE mistake: "{correction["wrong"]}" should be "{correction["right"]}"{note}.\n'
+                f'Gently correct that in one short clause (model the right form), then react and continue.')
+    else:
+        user = (f'The learner said: "{utterance}".\n'
+                f'It was correct — affirm briefly, then react and continue.')
     raw = _chat(TUTOR_SYS.format(lang=lang), user, config.LLM_TEMP_TUTOR)
     data = _parse_json(raw)
     if data and isinstance(data.get("reply"), str) and data["reply"].strip():
