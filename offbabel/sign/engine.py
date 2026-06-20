@@ -8,22 +8,24 @@ import asyncio
 import collections
 import threading
 
-from .. import config, memory
+from .. import config, srs
 
 
 class SignEngine:
     def __init__(self):
         self._thread = None
         self._stop = threading.Event()
+        self._level = "L3"
 
     @property
     def running(self):
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, loop, emit):
+    def start(self, loop, emit, level="L3"):
         """loop: the server asyncio loop. emit: a coroutine function taking one dict (hub.send)."""
         if self.running:
             return
+        self._level = level or "L3"
         self._stop.clear()
         self._thread = threading.Thread(target=self._run, args=(loop, emit), daemon=True)
         self._thread.start()
@@ -91,10 +93,11 @@ class SignEngine:
                     "stable": bool(stable),
                 })
 
-                # count each newly-recognized sign once (memory / progress)
+                # count each newly-recognized sign once (spaced repetition + live progress)
                 if stable and stable != last_stable:
                     last_stable = stable
-                    memory.log_seen("sign", "bsl", stable)
+                    srs.record_result("sign", self._level, self._level, stable, True)
+                    self._emit(loop, emit, {"type": "summary", "summary": srs.summary()})
                 elif not stable:
                     last_stable = None
         finally:

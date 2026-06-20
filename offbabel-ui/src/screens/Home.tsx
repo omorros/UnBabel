@@ -17,6 +17,12 @@ export function Home({
 }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center py-10">
+      <img
+        src="/mascot.png"
+        alt=""
+        draggable={false}
+        className="mx-auto mb-4 h-36 w-auto select-none"
+      />
       <h1 className="text-center text-4xl font-semibold tracking-tight sm:text-5xl">
         One tool, two communities.
       </h1>

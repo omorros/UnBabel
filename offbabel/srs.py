@@ -131,6 +131,21 @@ def stats():
     return {"speak": speak, "sign": sign}
 
 
+def summary():
+    """The Home/Progress snapshot the UI shows: streak, due-today, mastery per mode."""
+    return {
+        "streak": streak(),
+        "dueToday": due_count(),
+        "masterySpeak": mastery("speak")["pct"],
+        "masterySign": mastery("sign")["pct"],
+    }
+
+
+def all_items():
+    with _conn() as c:
+        return [dict(r) for r in c.execute("SELECT mode, scenario, level, prompt, miss_count, box, mastered FROM items").fetchall()]
+
+
 # ---- streak (one of the few gamification bits worth shipping) ----
 def _today():
     return time.strftime("%Y-%m-%d", time.localtime())
