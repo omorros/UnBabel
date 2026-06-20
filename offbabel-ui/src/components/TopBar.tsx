@@ -13,7 +13,7 @@ export function TopBar({
   return (
     <header className="flex items-center gap-4 border-b bg-card px-6 py-3">
       <div className="flex items-center gap-2">
-        <img src="/mascot.png" alt="" draggable={false} className="size-9 select-none" />
+        <img src="/mascot.png" alt="" draggable={false} className="h-9 w-auto select-none object-contain" />
         <span className="text-2xl font-semibold tracking-tight">OffBabel</span>
       </div>
       <Badge
