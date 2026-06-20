@@ -1,69 +1,66 @@
 """Speak mode (Person A / Mac): mic -> faster-whisper -> Exo LLM -> Piper TTS -> speakers.
 
-The tutor is scenario- and level-aware: it steers the learner toward the lesson's target
-phrases, weaves in due-for-review items, corrects gently, and emits hidden <hit>/<correction>
-tags we parse to drive the spaced-repetition engine (srs.py). transcribe()/speak_tts() are the
-parts that still need the cached models on the Mac.
+The tutor (Reachy) holds a multi-turn conversation: it greets and asks the first question,
+keeps the dialogue going one question at a time, corrects gently, gives an English translation
+of every line (so non-speakers and judges can follow), and can re-explain when the learner does
+not understand. It returns structured JSON the server parses to drive captions + the SRS.
 
-Wire-up in server.py is already done (the speak_text handler calls tutor_turn). On the Mac, fill
-in transcribe() + speak_tts() and route push-to-talk audio through them.
+transcribe()/speak_tts() are the parts that still need the cached models on the Mac.
 """
+import json
 import re
 
 from . import config, curriculum
 
 LANG_NAMES = {"es": "Spanish", "en": "English", "cs": "Czech"}
 
+# Injected as user-role turns; the model answers in the target language.
+OPENING_DIRECTIVE = "Begin the lesson: greet me warmly by name as Reachy and ask your first simple question."
+HELP_DIRECTIVE = "I do not understand. Re-ask your previous question more simply and slowly."
+
 
 def build_system_prompt(language, scenario, due_items):
-    lang = LANG_NAMES.get(language, "Spanish")
-    if not scenario:
-        return (
-            f"You are a friendly {lang} conversation tutor. Reply ONLY in {lang}, "
-            f"1-2 short sentences, keep the conversation going, and correct mistakes gently."
-        )
-    level = scenario.get("level", "A1")
-    targets = scenario.get("targets", [])
-    role = scenario.get("tutor_role", "a friendly tutor")
-    speech = curriculum.LEVEL_SPEECH.get(level, "")
-    support = curriculum.LEVEL_SUPPORT.get(level, "")
-    review_txt = "; ".join(due_items) if due_items else "none"
-    return f"""You are OffBabel's {lang} tutor. Role: {role}. Speak ONLY in {lang}.
-Level {level}: {speech} Scaffolding: {support}
-GOALS this session - steer the learner to PRODUCE each one naturally (do not list them aloud): {"; ".join(targets)}
-REVIEW - work these previously-missed items back in if you can: {review_txt}
-Correct gently (recast), at most one correction per turn. Keep your reply to 1-2 short sentences.
-After your spoken reply, on new lines output tags:
-  <hit>goal</hit>  for each goal the learner just produced correctly (zero or more),
-  <correction wrong="..." right="..." note="..."/>  if they made a mistake, else nothing.
-Output your spoken reply first, then the tags."""
+    L = LANG_NAMES.get(language, "Spanish")
+    if scenario:
+        level = scenario.get("level", "A2")
+        targets = "; ".join(scenario.get("targets", []))
+        speech = curriculum.LEVEL_SPEECH.get(level, "")
+    else:
+        level, targets, speech = "A2", "everyday conversation", ""
+    review = "; ".join(due_items) if due_items else "none"
+    return f"""You are Reachy, a warm, encouraging {L} conversation tutor speaking out loud to a learner.
+Rules:
+- Speak ONLY in {L}. Each turn is 1-2 SHORT sentences and ENDS WITH A QUESTION to keep the conversation going.
+- {speech}
+- Guide the learner toward practicing these goals, without listing them aloud: {targets}.
+- Reuse these previously-missed items if it is natural: {review}.
+- If the learner makes a {L} mistake, correct it gently with a recast.
+- If the learner says they do not understand, re-ask your PREVIOUS question more simply and slowly.
+Return ONLY a JSON object and nothing else:
+{{"reply": "<your {L} reply>", "translation": "<plain English translation of your reply>",
+  "correction": {{"wrong": "...", "right": "...", "note": "..."}} or null,
+  "hits": ["<goal the learner just achieved>", ...]}}"""
 
 
-_HIT = re.compile(r"<hit>(.*?)</hit>", re.S)
-_CORR = re.compile(r'<correction\s+wrong="(.*?)"\s+right="(.*?)"(?:\s+note="(.*?)")?\s*/>', re.S)
-
-
-def parse_tags(raw):
-    hits = [h.strip() for h in _HIT.findall(raw) if h.strip()]
-    corr = None
-    m = _CORR.search(raw)
+def _extract_json(raw):
+    m = re.search(r"\{.*\}", raw, re.S)
     if m:
-        corr = {"wrong": m.group(1), "right": m.group(2), "note": m.group(3) or ""}
-    reply = re.split(r"<hit>|<correction", raw, maxsplit=1)[0].strip()
-    return reply or raw.strip(), hits, corr
+        try:
+            return json.loads(m.group(0))
+        except Exception:  # noqa: BLE001
+            return None
+    return None
 
 
 def get_llm():
     """OpenAI client pointed at Exo (localhost:52415); set OFFBABEL_LLM_URL to use Ollama instead.
 
-    max_retries=0 + short timeout so that if no LLM is up the call fails fast to the stub
-    (otherwise the SDK retries a refused connection with backoff and the UI stalls).
+    Short connect timeout -> fails fast to the stub when no LLM is up; generous total timeout so
+    a real (slower, local) generation is not cut off.
     """
     import httpx
     from openai import OpenAI
 
-    # short connect timeout -> fails fast to the stub when no LLM is up; generous total
-    # timeout so a real (slower, local) generation is not cut off.
     return OpenAI(
         base_url=config.LLM_BASE_URL,
         api_key=config.LLM_API_KEY,
@@ -72,18 +69,23 @@ def get_llm():
     )
 
 
-def tutor_turn(text, language, scenario=None, due_items=None):
-    """One tutor turn. Returns {reply, hits: [...], correction: {...}|None}."""
+def tutor_turn(history, language, scenario=None, due_items=None):
+    """history: list of {role, content} including the latest user/directive turn.
+    Returns {reply, translation, correction|None, hits: [...]}.
+    """
     client = get_llm()
     sys = build_system_prompt(language, scenario, due_items or [])
+    messages = [{"role": "system", "content": sys}] + history
     resp = client.chat.completions.create(
-        model=config.LLM_MODEL,
-        messages=[{"role": "system", "content": sys}, {"role": "user", "content": text}],
-        temperature=0.4,
+        model=config.LLM_MODEL, messages=messages, temperature=0.5
     )
     raw = resp.choices[0].message.content or ""
-    reply, hits, corr = parse_tags(raw)
-    return {"reply": reply, "hits": hits, "correction": corr}
+    data = _extract_json(raw) or {"reply": raw.strip()}
+    data.setdefault("reply", "")
+    data.setdefault("translation", "")
+    data.setdefault("correction", None)
+    data.setdefault("hits", [])
+    return data
 
 
 def transcribe(audio, language):

@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { ArrowLeft, ArrowRight, Check, Mic, Send } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, HelpCircle, Mic, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Presence } from "@/components/Presence"
@@ -25,6 +25,7 @@ export function Speak({
   onBack,
   onSend,
   onPtt,
+  onHelp,
 }: {
   presence: PresenceState
   lang: Lang
@@ -38,6 +39,7 @@ export function Speak({
   onBack: () => void
   onSend: (text: string) => void
   onPtt: (active: boolean) => void
+  onHelp: () => void
 }) {
   const [text, setText] = useState("")
   const submit = (e: FormEvent) => {
@@ -123,7 +125,12 @@ export function Speak({
                     : "max-w-[78%] self-start rounded-2xl rounded-bl-md bg-muted px-4 py-2.5"
                 }
               >
-                {b.text}
+                <div>{b.text}</div>
+                {b.role === "tutor" && b.translation ? (
+                  <div className="mt-1 border-t border-border/60 pt-1 text-sm text-muted-foreground">
+                    {b.translation}
+                  </div>
+                ) : null}
               </div>
             ))}
           </div>
@@ -140,6 +147,12 @@ export function Speak({
           )}
         </div>
       )}
+
+      <div className="mt-3 flex justify-center">
+        <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={onHelp}>
+          <HelpCircle className="size-4" /> I don't understand
+        </Button>
+      </div>
 
       <div className="mt-4 flex flex-col gap-3">
         <Button

@@ -14,7 +14,7 @@ import os
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
-from . import config, curriculum, srs
+from . import config, curriculum, speak, srs
 from .sign.engine import SignEngine
 
 # Prefer the built React UI; fall back to the vanilla shell during early dev.
@@ -33,7 +33,7 @@ except Exception:  # noqa: BLE001
     _robot_emote = None
 
 # per-session lesson state (single local user)
-session = {"scenario": None, "level": "L3", "hits": []}
+session = {"scenario": None, "level": "L3", "lang": "es", "hits": [], "history": [], "turn": 0}
 
 
 class Hub:
@@ -112,10 +112,15 @@ async def handle(msg):
         await emote("idle")
         await hub.send({"type": "mode", "mode": mode})
         if mode == "speak":
-            session["scenario"] = msg.get("scenario")
-            session["level"] = msg.get("level")
-            session["hits"] = []
+            session.update(
+                scenario=msg.get("scenario"),
+                level=msg.get("level"),
+                lang=msg.get("language", session.get("lang", "es")),
+                hits=[], history=[], turn=0,
+            )
             sign_engine.stop()
+            session["history"].append({"role": "user", "content": speak.OPENING_DIRECTIVE})
+            await _run_tutor()  # Reachy opens the conversation
         elif mode == "sign":
             session["level"] = msg.get("level") or "L3"
             sign_engine.start(asyncio.get_running_loop(), hub.send, session["level"])
@@ -132,7 +137,18 @@ async def handle(msg):
         await hub.send({"type": "progress", "summary": srs.summary(), "review": _review_for_ui()})
 
     elif t == "speak_text":
-        await _handle_speak(msg)
+        await emote("listening")
+        await hub.send({"type": "transcript", "role": "user", "text": msg.get("text", "")})
+        session["lang"] = msg.get("language", session.get("lang", "es"))
+        session["history"].append({"role": "user", "content": msg.get("text", "")})
+        session["turn"] = session.get("turn", 0) + 1
+        await _run_tutor()
+
+    elif t == "speak_help":
+        await emote("listening")
+        await hub.send({"type": "transcript", "role": "user", "text": "(I don't understand)"})
+        session["history"].append({"role": "user", "content": speak.HELP_DIRECTIVE})
+        await _run_tutor(help_turn=True)
 
     elif t == "sign_demo_letter":
         letter = msg.get("label", "")
@@ -146,20 +162,11 @@ async def handle(msg):
         await emote("happy")
 
 
-async def _handle_speak(msg):
-    await tutor_exchange(
-        msg.get("text", ""),
-        msg.get("language", "es"),
-        msg.get("scenario") or session.get("scenario"),
-    )
-
-
 async def _tts(text, lang):
     """Best-effort speech output. No-op until speak_tts (Piper) is wired on the Mac."""
     if not text:
         return
     try:
-        from . import speak
         await asyncio.to_thread(speak.speak_tts, text, lang)
     except NotImplementedError:
         pass
@@ -167,35 +174,82 @@ async def _tts(text, lang):
         print("tts failed (ignored):", e)
 
 
-async def tutor_exchange(text, lang, scn_id):
-    """One tutor turn -> transcript + correction + audio + SRS + summary.
+# Scripted fallback so the whole conversation demos even with no LLM (and as a safety net).
+# Mirrors the greetings lesson: open -> a couple of turns (with one correction) -> wrap.
+_STUB = {
+    "es": {
+        "open": {"reply": "¡Hola! Soy Reachy. ¿Cómo te llamas?",
+                 "translation": "Hi! I'm Reachy. What's your name?"},
+        "help": {"reply": "Claro. ¿Có... mo... te... lla... mas?",
+                 "translation": "Sure. What is your name?"},
+        "turns": [
+            {"reply": "¡Encantado! ¿De dónde eres?",
+             "translation": "Nice to meet you! Where are you from?"},
+            {"reply": "¡Qué bien! Un detalle: decimos 'soy de', no 'estoy de'. ¿Y qué te gusta hacer?",
+             "translation": "Great! One note: we say 'soy de', not 'estoy de'. And what do you like to do?",
+             "correction": {"wrong": "estoy de Barcelona", "right": "soy de Barcelona",
+                            "note": "Use 'ser' for where you are from."}},
+            {"reply": "¡Muy bien hablado! Por hoy, ¡buen trabajo!",
+             "translation": "Very well said! That's it for today, great job!"},
+        ],
+    },
+    "en": {
+        "open": {"reply": "Hi! I'm Reachy. What's your name?",
+                 "translation": "Hi! I'm Reachy. What's your name?"},
+        "help": {"reply": "Sure. What... is... your... name?",
+                 "translation": "Sure. What is your name?"},
+        "turns": [
+            {"reply": "Nice to meet you! Where are you from?",
+             "translation": "Nice to meet you! Where are you from?"},
+            {"reply": "Great! Quick fix: we say 'he goes', not 'he go'. What do you like to do?",
+             "translation": "Great! Quick fix: we say 'he goes', not 'he go'. What do you like to do?",
+             "correction": {"wrong": "he go to work", "right": "he goes to work",
+                            "note": "Third person singular adds -s."}},
+            {"reply": "Really well said. That's it for today, great job!",
+             "translation": "Really well said. That's it for today, great job!"},
+        ],
+    },
+}
 
-    Reusable seam: the push-to-talk path (once Whisper is wired on the Mac) transcribes the
-    mic audio to `text` and calls THIS function, so speech and text inputs share one path.
+
+def _stub_reply(lang, scn, help_turn):
+    s = _STUB.get(lang, _STUB["en"])
+    if help_turn:
+        d = s["help"]
+        return {"reply": d["reply"], "translation": d["translation"], "correction": None, "hits": []}
+    turn = session.get("turn", 0)
+    d = s["open"] if turn <= 0 else s["turns"][min(turn - 1, len(s["turns"]) - 1)]
+    hits = []
+    if scn and turn > 0:
+        remaining = [t for t in scn["targets"] if t not in session["hits"]]
+        if remaining:
+            hits = [remaining[0]]
+    return {"reply": d["reply"], "translation": d.get("translation", ""),
+            "correction": d.get("correction"), "hits": hits}
+
+
+async def _run_tutor(help_turn=False):
+    """Generate + send one tutor turn. session['history'] already holds the latest user turn.
+
+    Real path uses the LLM with full conversation history (coherent multi-turn). If no LLM is
+    reachable it falls back to the scripted _stub_reply so the demo still flows.
     """
-    scn = curriculum.scenario(scn_id) if scn_id else None
+    lang = session.get("lang", "es")
+    scn = curriculum.scenario(session.get("scenario")) if session.get("scenario") else None
 
-    await emote("listening")
-    await hub.send({"type": "transcript", "role": "user", "text": text})
     await emote("speaking")
-
     data = None
     try:
-        from . import speak
         due = [i["prompt"] for i in srs.due_items(mode="speak", limit=3)]
-        data = await asyncio.to_thread(speak.tutor_turn, text, lang, scn, due)
+        data = await asyncio.to_thread(speak.tutor_turn, session["history"], lang, scn, due)
     except Exception as e:  # noqa: BLE001
         print("tutor LLM unavailable, stub:", e)
+    if not data or not data.get("reply"):
+        data = _stub_reply(lang, scn, help_turn)
 
-    if not data:
-        # stub so the lesson still demos without an LLM: advance one target
-        nxt = None
-        if scn:
-            remaining = [tg for tg in scn["targets"] if tg not in session["hits"]]
-            nxt = remaining[0] if remaining else None
-        data = {"reply": "(tutor offline) " + text, "hits": [nxt] if nxt else [], "correction": None}
+    session["history"].append({"role": "assistant", "content": data.get("reply", "")})
 
-    if scn:
+    if scn and not help_turn:
         for h in data.get("hits", []):
             if h and h not in session["hits"]:
                 session["hits"].append(h)
@@ -205,14 +259,15 @@ async def tutor_exchange(text, lang, scn_id):
             srs.record_result("speak", scn["id"], scn["level"], corr["wrong"][:40], False)
 
     reply = data.get("reply", "")
-    await hub.send({"type": "transcript", "role": "tutor", "text": reply})
+    await hub.send({"type": "transcript", "role": "tutor", "text": reply,
+                    "translation": data.get("translation", "")})
     if data.get("correction"):
         await hub.send({"type": "correction", **data["correction"]})
     if scn:
         await hub.send({"type": "targets", "count": len(session["hits"])})
     await emote("idle")
     await hub.send({"type": "summary", "summary": srs.summary()})
-    asyncio.create_task(_tts(reply, lang))  # play audio concurrently (no-op until Piper is wired)
+    asyncio.create_task(_tts(reply, lang))  # plays concurrently (no-op until Piper is wired)
 
 
 # Serve the static UI with a catch-all (robust on Windows): return the file if it exists

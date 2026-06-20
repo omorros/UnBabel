@@ -10,7 +10,7 @@ export const LANGS: { value: Lang; label: string; flag: string }[] = [
   { value: "cs", label: "Czech", flag: "🇨🇿" },
 ]
 
-export type Bubble = { role: "user" | "tutor"; text: string }
+export type Bubble = { role: "user" | "tutor"; text: string; translation?: string }
 export type Correction = { wrong: string; right: string; note?: string }
 export type ReviewItem = {
   type: "word" | "sign"

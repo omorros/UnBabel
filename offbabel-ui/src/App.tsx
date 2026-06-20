@@ -94,7 +94,7 @@ export default function App() {
           setHits(m.count ?? 0)
           break
         case "transcript":
-          setTranscript((t) => [...t, { role: m.role, text: m.text }])
+          setTranscript((t) => [...t, { role: m.role, text: m.text, translation: m.translation }])
           break
         case "correction":
           setCorrection({ wrong: m.wrong, right: m.right, note: m.note })
@@ -126,9 +126,11 @@ export default function App() {
       setCorrection(null)
       setPresence("idle")
       setScreen("speak")
-      if (connected) send({ type: "set_mode", mode: "speak", scenario: scn.id, level: scn.level })
+      // Reachy opens the conversation server-side (the greeting arrives as a tutor transcript).
+      if (connected)
+        send({ type: "set_mode", mode: "speak", scenario: scn.id, level: scn.level, language: lang })
     },
-    [connected, send]
+    [connected, send, lang]
   )
 
   const startSign = useCallback(
@@ -189,6 +191,18 @@ export default function App() {
     [connected, send]
   )
 
+  const speakHelp = useCallback(() => {
+    if (connected) {
+      send({ type: "speak_help" })
+      return
+    }
+    setPresence("speaking")
+    window.setTimeout(() => {
+      setTranscript((t) => [...t, { role: "tutor", text: "Let me say that again, more simply." }])
+      setPresence("idle")
+    }, 500)
+  }, [connected, send])
+
   const signDemo = useCallback(
     (letter: string) => {
       if (connected) {
@@ -228,6 +242,7 @@ export default function App() {
             onBack={() => go("home")}
             onSend={speakSend}
             onPtt={ptt}
+            onHelp={speakHelp}
           />
         )}
         {screen === "sign" && (
