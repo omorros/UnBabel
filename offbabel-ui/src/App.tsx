@@ -96,6 +96,7 @@ export default function App() {
           setHits(m.count ?? 0)
           break
         case "transcript":
+          if (m.role === "user") setCorrection(null) // a new turn clears the previous correction
           setTranscript((t) => [...t, { role: m.role, text: m.text, translation: m.translation }])
           break
         case "correction": {

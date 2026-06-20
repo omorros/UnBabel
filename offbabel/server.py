@@ -190,10 +190,8 @@ _STUB = {
         "turns": [
             {"reply": "¡Encantado! ¿De dónde eres?",
              "translation": "Nice to meet you! Where are you from?"},
-            {"reply": "¡Qué bien! Un detalle: decimos 'soy de', no 'estoy de'. ¿Y qué te gusta hacer?",
-             "translation": "Great! One note: we say 'soy de', not 'estoy de'. And what do you like to do?",
-             "correction": {"wrong": "estoy de Barcelona", "right": "soy de Barcelona",
-                            "note": "Use 'ser' for where you are from."}},
+            {"reply": "¡Genial! ¿Y qué te gusta hacer en tu tiempo libre?",
+             "translation": "Great! And what do you like to do in your free time?"},
             {"reply": "¡Muy bien hablado! Por hoy, ¡buen trabajo!",
              "translation": "Very well said! That's it for today, great job!"},
         ],
@@ -206,10 +204,8 @@ _STUB = {
         "turns": [
             {"reply": "Nice to meet you! Where are you from?",
              "translation": "Nice to meet you! Where are you from?"},
-            {"reply": "Great! Quick fix: we say 'he goes', not 'he go'. What do you like to do?",
-             "translation": "Great! Quick fix: we say 'he goes', not 'he go'. What do you like to do?",
-             "correction": {"wrong": "he go to work", "right": "he goes to work",
-                            "note": "Third person singular adds -s."}},
+            {"reply": "Great! And what do you like to do in your free time?",
+             "translation": "Great! And what do you like to do in your free time?"},
             {"reply": "Really well said. That's it for today, great job!",
              "translation": "Really well said. That's it for today, great job!"},
         ],
@@ -229,8 +225,10 @@ def _stub_reply(lang, scn, help_turn):
         remaining = [t for t in scn["targets"] if t not in session["hits"]]
         if remaining:
             hits = [remaining[0]]
+    # the offline stub never fabricates corrections (it can't analyze input); real corrections
+    # only come from the live LLM (Exo on the Mac / Ollama).
     return {"reply": d["reply"], "translation": d.get("translation", ""),
-            "correction": d.get("correction"), "hits": hits}
+            "correction": None, "hits": hits}
 
 
 async def _run_tutor(help_turn=False):

@@ -65,7 +65,7 @@ def get_llm():
         base_url=config.LLM_BASE_URL,
         api_key=config.LLM_API_KEY,
         max_retries=0,
-        timeout=httpx.Timeout(30.0, connect=2.0),
+        timeout=httpx.Timeout(30.0, connect=0.6),
     )
 
 
