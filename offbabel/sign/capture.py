@@ -51,6 +51,9 @@ def main():
     counts = Counter(r[-1] for r in rows)
     armed = None        # free mode
     frame_no = 0
+    cur_target = None   # guided: the letter currently being collected
+    grace = 0           # guided: countdown frames before collecting a NEW letter (time to switch shape)
+    GRACE_FRAMES = 45   # ~1.5s at 30fps
 
     landmarker = create_landmarker()
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -67,11 +70,18 @@ def main():
 
             if guided:
                 target = next((c for c in guided if counts[c] < args.per), None)
-                # collect every 3rd frame so a held pose yields varied samples
-                if target and hands and frame_no % 3 == 0:
-                    rows.append(list(build_feature_vector(hands)) + [target])
-                    counts[target] += 1
-                if target:
+                if target != cur_target:          # switched letters -> grace period to change shape
+                    cur_target = target
+                    grace = GRACE_FRAMES if target else 0
+                if target and grace > 0:
+                    grace -= 1
+                    hud = f"GET READY: {target}   {grace / 30.0:0.1f}s"
+                    color = (0, 140, 220)
+                elif target:
+                    # collect every 3rd frame so a held pose yields varied samples
+                    if hands and frame_no % 3 == 0:
+                        rows.append(list(build_feature_vector(hands)) + [target])
+                        counts[target] += 1
                     hud = f"SHOW: {target}   {counts[target]}/{args.per}"
                     color = (0, 220, 0) if hands else (0, 140, 220)
                 else:

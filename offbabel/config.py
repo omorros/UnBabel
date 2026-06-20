@@ -17,8 +17,8 @@ HAND_MODEL_PATH = os.environ.get(
 
 # ---- Sign / vision ----
 CAMERA_INDEX = int(os.environ.get("OFFBABEL_CAMERA", "0"))
-DEBOUNCE_FRAMES = int(os.environ.get("OFFBABEL_DEBOUNCE", "8"))  # frames of agreement before we accept a letter
-CONF_THRESHOLD = float(os.environ.get("OFFBABEL_CONF", "0.6"))   # min predict_proba to count a frame
+DEBOUNCE_FRAMES = int(os.environ.get("OFFBABEL_DEBOUNCE", "12"))  # frames of agreement before we accept a letter (higher = steadier)
+CONF_THRESHOLD = float(os.environ.get("OFFBABEL_CONF", "0.55"))   # min predict_proba to count a frame
 NEG_LABEL = "_"  # "nothing / junk" class — helps reject noise
 
 # ---- LLM (Speak) ----
