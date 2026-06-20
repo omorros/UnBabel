@@ -1,20 +1,22 @@
-"""Capture normalized BSL landmark samples from the webcam, labeled live.
+"""Capture normalized BSL landmark samples from the webcam.
 
-Run:  python -m offbabel.sign.capture     (from the repo root)
+GUIDED mode (recommended) - it tells you which letter to show and auto-collects samples:
+    python -m offbabel.sign.capture --letters A,E,I,O,U --per 35
+    python -m offbabel.sign.capture --letters B,C,L,R,T --per 35 --append
+  Hold each handshape (both hands in frame). It collects while you hold, then moves to the next
+  letter automatically. Keys: n = skip to next, u = undo last, q = quit + save.
 
-Controls:
-  a-z    arm that letter -> every frame with hand(s) visible is saved as that letter
-  0      arm the negative "nothing" class (junk / no clear sign) -> rejects noise later
-  SPACE  disarm (stop saving)
-  u      undo last sample
-  q      quit + write data/landmarks.csv
+FREE mode (no --letters) - arm a label yourself:
+    python -m offbabel.sign.capture
+  Keys: a-z arm a letter, 0 arm negative/"nothing", SPACE stop, u undo, q quit + save.
 
-Protocol (PRD section 4): ~30-50 samples/letter, BOTH hands in frame, slight natural
-variation in angle/distance, UNDER VENUE LIGHTING, plain background. Hold the shape and
-stay armed for ~2s to collect a burst. Make H, E, L, O rock-solid; test E-vs-O hardest.
+Protocol (PRD section 4): ~30-50 samples/letter, BOTH hands in frame, slight natural variation
+in angle/distance, UNDER VENUE LIGHTING, plain background. BSL is two-handed.
 """
+import argparse
 import csv
 import os
+from collections import Counter
 
 import cv2
 
@@ -23,10 +25,32 @@ from .landmarks import build_feature_vector, FEATURE_DIM
 from .. import config
 
 
+def _load_existing():
+    rows = []
+    if os.path.exists(config.LANDMARKS_CSV):
+        with open(config.LANDMARKS_CSV, newline="") as f:
+            r = csv.reader(f)
+            next(r, None)  # header
+            for row in r:
+                if len(row) == FEATURE_DIM + 1:
+                    rows.append([float(x) for x in row[:FEATURE_DIM]] + [row[FEATURE_DIM]])
+    return rows
+
+
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--letters", help="comma list to guide capture, e.g. A,E,I,O,U")
+    ap.add_argument("--per", type=int, default=35, help="target samples per letter (guided)")
+    ap.add_argument("--append", action="store_true", help="append to existing landmarks.csv")
+    args = ap.parse_args()
+
+    guided = [s.strip().upper() for s in args.letters.split(",")] if args.letters else None
     os.makedirs(config.DATA_DIR, exist_ok=True)
-    rows = []           # each: [f0..f125, label]
-    armed = None        # currently-armed label, or None
+
+    rows = _load_existing() if args.append else []
+    counts = Counter(r[-1] for r in rows)
+    armed = None        # free mode
+    frame_no = 0
 
     landmarker = create_landmarker()
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -35,34 +59,55 @@ def main():
             ok, frame = cap.read()
             if not ok:
                 break
-            frame = cv2.flip(frame, 1)  # mirror for natural interaction
+            frame = cv2.flip(frame, 1)
+            frame_no += 1
             result = detect(landmarker, frame)
             hands = to_hands(result)
             draw(frame, result)
 
-            if armed is not None and hands:
-                rows.append(list(build_feature_vector(hands)) + [armed])
+            if guided:
+                target = next((c for c in guided if counts[c] < args.per), None)
+                # collect every 3rd frame so a held pose yields varied samples
+                if target and hands and frame_no % 3 == 0:
+                    rows.append(list(build_feature_vector(hands)) + [target])
+                    counts[target] += 1
+                if target:
+                    hud = f"SHOW: {target}   {counts[target]}/{args.per}"
+                    color = (0, 220, 0) if hands else (0, 140, 220)
+                else:
+                    hud = "DONE - press q to save"
+                    color = (0, 220, 0)
+                cv2.putText(frame, hud, (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, color, 2)
+                prog = " ".join(f"{c}:{counts[c]}" for c in guided)
+                cv2.putText(frame, prog, (10, 72), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
+            else:
+                if armed is not None and hands:
+                    rows.append(list(build_feature_vector(hands)) + [armed])
+                    counts[armed] += 1
+                cv2.putText(frame, f"ARMED:{armed}  total:{len(rows)}", (10, 32),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, str(dict(counts)), (10, 60),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
 
-            counts = {}
-            for r in rows:
-                counts[r[-1]] = counts.get(r[-1], 0) + 1
-            hud = f"ARMED:{armed}  total:{len(rows)}  hands:{len(hands)}"
-            cv2.putText(frame, hud, (10, 28), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-            cv2.putText(frame, str(counts), (10, 56), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
-            cv2.imshow("OffBabel capture  [a-z arm | 0 neg | SPACE stop | u undo | q quit]", frame)
-
+            cv2.imshow("OffBabel capture  [q save | u undo | n next | a-z/0 arm (free)]", frame)
             key = cv2.waitKey(1) & 0xFF
             if key == ord("q"):
                 break
-            elif key == ord(" "):
-                armed = None
-            elif key == ord("u"):
-                if rows:
-                    rows.pop()
-            elif key == ord("0"):
-                armed = config.NEG_LABEL
-            elif 97 <= key <= 122:  # a-z
-                armed = chr(key).upper()
+            elif key == ord("u") and rows:
+                counts[rows[-1][-1]] -= 1
+                rows.pop()
+            elif guided and key == ord("n"):
+                # skip current target: fill its count so it advances
+                tgt = next((c for c in guided if counts[c] < args.per), None)
+                if tgt:
+                    counts[tgt] = args.per
+            elif not guided:
+                if key == ord(" "):
+                    armed = None
+                elif key == ord("0"):
+                    armed = config.NEG_LABEL
+                elif 97 <= key <= 122:
+                    armed = chr(key).upper()
     finally:
         cap.release()
         cv2.destroyAllWindows()
@@ -73,9 +118,7 @@ def main():
         w.writerow([f"f{i}" for i in range(FEATURE_DIM)] + ["label"])
         w.writerows(rows)
     print(f"Wrote {len(rows)} samples to {config.LANDMARKS_CSV}")
-    if rows:
-        from collections import Counter
-        print("Per-label counts:", dict(Counter(r[-1] for r in rows)))
+    print("Per-label counts:", dict(counts))
 
 
 if __name__ == "__main__":

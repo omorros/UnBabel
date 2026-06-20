@@ -43,6 +43,12 @@ export function Sign({
 
       {/* Skill levels */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span
+          className="rounded-full bg-success/10 px-2.5 py-1 text-xs font-semibold text-success"
+          title="British Sign Language, two-handed fingerspelling"
+        >
+          BSL · two-handed
+        </span>
         <span className="text-sm text-muted-foreground">Level</span>
         {levels.map((lv) => (
           <button
