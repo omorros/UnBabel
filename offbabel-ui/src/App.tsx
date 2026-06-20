@@ -183,10 +183,11 @@ export default function App() {
     [connected, send, lang, scenario]
   )
 
-  const ptt = useCallback(
-    (active: boolean) => {
-      if (connected) send({ type: active ? "speak_ptt_start" : "speak_ptt_stop" })
-      setPresence(active ? "listening" : "idle")
+  const converse = useCallback(
+    (activeConv: boolean) => {
+      // Hands-free: begins/stops the mic+VAD listening loop (wired on the Mac).
+      if (connected) send({ type: activeConv ? "conversation_start" : "conversation_stop" })
+      setPresence(activeConv ? "listening" : "idle")
     },
     [connected, send]
   )
@@ -241,7 +242,7 @@ export default function App() {
             onSelectScenario={startSpeak}
             onBack={() => go("home")}
             onSend={speakSend}
-            onPtt={ptt}
+            onConverse={converse}
             onHelp={speakHelp}
           />
         )}

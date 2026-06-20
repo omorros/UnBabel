@@ -150,6 +150,11 @@ async def handle(msg):
         session["history"].append({"role": "user", "content": speak.HELP_DIRECTIVE})
         await _run_tutor(help_turn=True)
 
+    elif t in ("conversation_start", "conversation_stop"):
+        # Seam (Mac): start/stop the mic + VAD listening loop. For each detected utterance:
+        # text = speak.transcribe(...); session["history"].append user turn; await _run_tutor().
+        await emote("listening" if t == "conversation_start" else "idle")
+
     elif t == "sign_demo_letter":
         letter = msg.get("label", "")
         lvl = session.get("level") or "L3"

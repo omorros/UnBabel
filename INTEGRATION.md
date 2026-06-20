@@ -38,10 +38,11 @@ Fallback to Ollama with no code change: `OFFBABEL_LLM_URL=http://localhost:11434
 Confirm the port + model string with the Exo reps.
 
 ### 2. Whisper (mic → text) — fill `speak.transcribe`
-Implement `speak.transcribe(audio, language)` (faster-whisper small int8, load once). Then make
-push-to-talk capture audio: in `server.handle`, on `speak_ptt_start` start a `sounddevice`
-recording, on `speak_ptt_stop` stop it, transcribe, and call `await tutor_exchange(text, lang, session["scenario"])`.
-Text input already shares that path, so once transcribe + capture work, speech "just works".
+Implement `speak.transcribe(audio, language)` (faster-whisper small int8, load once). The UI is
+hands-free: on `conversation_start` start a `sounddevice` + VAD listening loop; for each detected
+utterance do `text = speak.transcribe(...)`, append `{"role":"user","content":text}` to
+`session["history"]`, then `await _run_tutor()`. On `conversation_stop`, end the loop. Typing
+already calls that same path, so once transcribe + the loop work, speech just works.
 
 ### 3. Piper (text → speech) — fill `speak.speak_tts`
 Implement `speak.speak_tts(text, language)` with the LOCAL voice path from `config.PIPER_VOICES`
