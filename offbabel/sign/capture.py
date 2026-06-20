@@ -17,24 +17,10 @@ import csv
 import os
 
 import cv2
-import mediapipe as mp
 
+from .hands import create_landmarker, detect, to_hands, draw
 from .landmarks import build_feature_vector, FEATURE_DIM
 from .. import config
-
-mp_hands = mp.solutions.hands
-mp_draw = mp.solutions.drawing_utils
-
-
-def extract_hands(results):
-    """MediaPipe results -> list of ('Left'|'Right', [(x,y,z)*21])."""
-    hands = []
-    if results.multi_hand_landmarks and results.multi_handedness:
-        for lm, handed in zip(results.multi_hand_landmarks, results.multi_handedness):
-            label = handed.classification[0].label  # 'Left' or 'Right'
-            pts = [(p.x, p.y, p.z) for p in lm.landmark]
-            hands.append((label, pts))
-    return hands
 
 
 def main():
@@ -42,22 +28,18 @@ def main():
     rows = []           # each: [f0..f125, label]
     armed = None        # currently-armed label, or None
 
+    landmarker = create_landmarker()
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
-    with mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.6,
-                        min_tracking_confidence=0.5) as model:
+    try:
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
             frame = cv2.flip(frame, 1)  # mirror for natural interaction
-            results = model.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            hands = extract_hands(results)
+            result = detect(landmarker, frame)
+            hands = to_hands(result)
+            draw(frame, result)
 
-            if results.multi_hand_landmarks:
-                for lm in results.multi_hand_landmarks:
-                    mp_draw.draw_landmarks(frame, lm, mp_hands.HAND_CONNECTIONS)
-
-            # save while armed and at least one hand is visible
             if armed is not None and hands:
                 rows.append(list(build_feature_vector(hands)) + [armed])
 
@@ -81,9 +63,10 @@ def main():
                 armed = config.NEG_LABEL
             elif 97 <= key <= 122:  # a-z
                 armed = chr(key).upper()
-
-    cap.release()
-    cv2.destroyAllWindows()
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        landmarker.close()
 
     with open(config.LANDMARKS_CSV, "w", newline="") as f:
         w = csv.writer(f)

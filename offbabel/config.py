@@ -7,8 +7,13 @@ import os
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE, "data")
+MODELS_DIR = os.path.join(BASE, "models")
 LANDMARKS_CSV = os.path.join(DATA_DIR, "landmarks.csv")
 SIGN_MODEL_PATH = os.path.join(DATA_DIR, "sign_knn.joblib")
+# Vendored MediaPipe Tasks hand model (committed to the repo -> offline + identical on every machine)
+HAND_MODEL_PATH = os.environ.get(
+    "OFFBABEL_HAND_MODEL", os.path.join(MODELS_DIR, "hand_landmarker.task")
+)
 
 # ---- Sign / vision ----
 CAMERA_INDEX = int(os.environ.get("OFFBABEL_CAMERA", "0"))

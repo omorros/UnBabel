@@ -42,9 +42,8 @@ class SignEngine:
             import cv2
             import joblib
             import numpy as np
-            import mediapipe as mp
+            from .hands import create_landmarker, detect, to_hands
             from .landmarks import build_feature_vector
-            from .capture import extract_hands
         except Exception as e:  # noqa: BLE001
             self._emit(loop, emit, {"type": "status", "sign_error": f"vision deps missing: {e}"})
             return
@@ -58,18 +57,16 @@ class SignEngine:
         clf = bundle["model"]
         recent = collections.deque(maxlen=config.DEBOUNCE_FRAMES)
         last_stable = None
+        landmarker = create_landmarker()
         cap = cv2.VideoCapture(config.CAMERA_INDEX)
-        mp_hands = mp.solutions.hands
 
-        with mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.6,
-                            min_tracking_confidence=0.5) as model:
+        try:
             while not self._stop.is_set():
                 ok, frame = cap.read()
                 if not ok:
                     break
                 frame = cv2.flip(frame, 1)
-                results = model.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-                hands = extract_hands(results)
+                hands = to_hands(detect(landmarker, frame))
 
                 label, conf = "-", 0.0
                 if hands:
@@ -100,5 +97,6 @@ class SignEngine:
                     memory.log_seen("sign", "bsl", stable)
                 elif not stable:
                     last_stable = None
-
-        cap.release()
+        finally:
+            cap.release()
+            landmarker.close()

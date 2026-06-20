@@ -70,6 +70,14 @@ def needs_review(limit=10):
         return [dict(r) for r in rows]
 
 
+def all_items():
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT type, language, value, miss_count, seen_count, last_seen FROM item"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
 def stats():
     with _conn() as c:
         words = c.execute("SELECT COUNT(*) FROM item WHERE type='word'").fetchone()[0]

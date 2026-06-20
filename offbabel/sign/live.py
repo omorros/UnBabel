@@ -10,10 +10,9 @@ import collections
 import cv2
 import joblib
 import numpy as np
-import mediapipe as mp
 
+from .hands import create_landmarker, detect, to_hands, draw
 from .landmarks import build_feature_vector
-from .capture import extract_hands
 from .. import config
 
 
@@ -21,24 +20,24 @@ def predict(bundle, feat):
     clf = bundle["model"]
     proba = clf.predict_proba([feat])[0]
     i = int(np.argmax(proba))
-    return clf.classes_[i], float(proba[i])
+    return str(clf.classes_[i]), float(proba[i])
 
 
 def main():
     bundle = joblib.load(config.SIGN_MODEL_PATH)
     recent = collections.deque(maxlen=config.DEBOUNCE_FRAMES)
-    mp_hands = mp.solutions.hands
 
+    landmarker = create_landmarker()
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
-    with mp_hands.Hands(max_num_hands=2, min_detection_confidence=0.6,
-                        min_tracking_confidence=0.5) as model:
+    try:
         while True:
             ok, frame = cap.read()
             if not ok:
                 break
             frame = cv2.flip(frame, 1)
-            results = model.process(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            hands = extract_hands(results)
+            result = detect(landmarker, frame)
+            hands = to_hands(result)
+            draw(frame, result)
 
             label, conf = "-", 0.0
             if hands:
@@ -47,7 +46,6 @@ def main():
             else:
                 recent.append(None)
 
-            # accepted only when the whole debounce window agrees on a real (non-negative) letter
             stable = None
             if len(recent) == recent.maxlen and len(set(recent)) == 1:
                 only = recent[0]
@@ -61,9 +59,10 @@ def main():
             cv2.imshow("OffBabel sign  [q quit]", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 break
-
-    cap.release()
-    cv2.destroyAllWindows()
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+        landmarker.close()
 
 
 if __name__ == "__main__":
