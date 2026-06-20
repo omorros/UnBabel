@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge"
 
 export function TopBar() {
   return (
-    <header className="flex items-center gap-4 border-b bg-card px-6 py-3">
+    <header className="flex items-center gap-4 border-b bg-card px-6 py-3 print:hidden">
       <div className="flex items-center gap-2">
         <img src="/mascot.png" alt="" draggable={false} className="h-9 w-auto select-none object-contain" />
         <span className="text-2xl font-semibold tracking-tight">OffBabel</span>

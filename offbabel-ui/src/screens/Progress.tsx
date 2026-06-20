@@ -1,4 +1,4 @@
-import { ArrowLeft, Flame, Mic, Hand, RotateCcw } from "lucide-react"
+import { ArrowLeft, FileText, Flame, Mic, Hand, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress as Bar } from "@/components/ui/progress"
 import type { LearnSummary, ReviewItem } from "@/lib/offbabel"
@@ -6,18 +6,23 @@ import type { LearnSummary, ReviewItem } from "@/lib/offbabel"
 export function Progress({
   review,
   summary,
+  onSummary,
   onBack,
 }: {
   stats: { words: number; signs: number }
   review: ReviewItem[]
   summary: LearnSummary
+  onSummary: () => void
   onBack: () => void
 }) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col py-6">
-      <div className="flex items-center">
+      <div className="flex items-center justify-between">
         <Button variant="ghost" className="gap-1.5" onClick={onBack}>
           <ArrowLeft className="size-5" /> Back
+        </Button>
+        <Button variant="secondary" className="gap-1.5" onClick={onSummary}>
+          <FileText className="size-4" /> Review sheet
         </Button>
       </div>
 

@@ -48,6 +48,7 @@ export function Home({
         <ModeCard
           onClick={onSign}
           img="/mascot-sign.png"
+          imgClassName="h-[156px]"
           title="Sign"
           desc="Fingerspell British Sign Language to the camera."
         />
@@ -63,11 +64,13 @@ export function Home({
 function ModeCard({
   onClick,
   img,
+  imgClassName = "h-32",
   title,
   desc,
 }: {
   onClick: () => void
   img: string
+  imgClassName?: string
   title: string
   desc: string
 }) {
@@ -81,7 +84,7 @@ function ModeCard({
         src={img}
         alt=""
         draggable={false}
-        className="h-24 w-auto shrink-0 select-none object-contain"
+        className={`${imgClassName} w-auto shrink-0 select-none object-contain`}
       />
       <div>
         <div className="flex items-center gap-2">
