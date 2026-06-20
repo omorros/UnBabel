@@ -4,6 +4,7 @@ import { Home } from "@/screens/Home"
 import { Speak } from "@/screens/Speak"
 import { Sign } from "@/screens/Sign"
 import { Progress } from "@/screens/Progress"
+import { Summary } from "@/screens/Summary"
 import { useSocket } from "@/hooks/useSocket"
 import {
   EMPTY_SUMMARY,
@@ -55,6 +56,7 @@ export default function App() {
   const hitsRef = useRef(0)
   const [transcript, setTranscript] = useState<Bubble[]>([])
   const [correction, setCorrection] = useState<Correction | null>(null)
+  const [mistakes, setMistakes] = useState<Correction[]>([]) // accumulated for the review sheet
 
   // Sign lesson state
   const [signLevel, setSignLevel] = useState<SignLevel>(SIGN_LEVELS[0])
@@ -94,11 +96,15 @@ export default function App() {
           setHits(m.count ?? 0)
           break
         case "transcript":
+          if (m.role === "user") setCorrection(null) // a new turn clears the previous correction
           setTranscript((t) => [...t, { role: m.role, text: m.text, translation: m.translation }])
           break
-        case "correction":
-          setCorrection({ wrong: m.wrong, right: m.right, note: m.note })
+        case "correction": {
+          const c = { wrong: m.wrong, right: m.right, note: m.note }
+          setCorrection(c)
+          setMistakes((arr) => [...arr, c])
           break
+        }
         case "emote":
           setPresence(mapEmote(m.emotion))
           break
@@ -124,6 +130,7 @@ export default function App() {
       setHits(0)
       setTranscript([])
       setCorrection(null)
+      setMistakes([])
       setPresence("idle")
       setScreen("speak")
       // Reachy opens the conversation server-side (the greeting arrives as a tutor transcript).
@@ -155,7 +162,7 @@ export default function App() {
       setPresence("idle")
       if (connected) {
         send({ type: "set_mode", mode: s })
-        if (s === "progress") send({ type: "get_progress" })
+        if (s === "progress" || s === "summary") send({ type: "get_progress" })
       }
     },
     [connected, send, scenario, signLevel, startSpeak, startSign]
@@ -176,7 +183,12 @@ export default function App() {
       const complete = nh >= scenario.targets.length
       window.setTimeout(() => {
         setTranscript((t) => [...t, { role: "tutor", text: complete ? LESSON_DONE[lang] : REPLY[lang] }])
-        setCorrection(complete ? null : SAMPLE_CORR[lang])
+        if (complete) {
+          setCorrection(null)
+        } else {
+          setCorrection(SAMPLE_CORR[lang])
+          setMistakes((arr) => [...arr, SAMPLE_CORR[lang]])
+        }
         setPresence(complete ? "celebrate" : "idle")
       }, 700)
     },
@@ -216,10 +228,10 @@ export default function App() {
   )
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className="flex h-screen flex-col overflow-hidden print:h-auto print:overflow-visible">
       <TopBar />
 
-      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 print:overflow-visible">
         {screen === "home" && (
           <Home
             lang={lang}
@@ -259,11 +271,20 @@ export default function App() {
           />
         )}
         {screen === "progress" && (
-          <Progress stats={stats} review={review} summary={summary} onBack={() => go("home")} />
+          <Progress
+            stats={stats}
+            review={review}
+            summary={summary}
+            onSummary={() => go("summary")}
+            onBack={() => go("home")}
+          />
+        )}
+        {screen === "summary" && (
+          <Summary mistakes={mistakes} review={review} summary={summary} onBack={() => go("home")} />
         )}
       </main>
 
-      <footer className="border-t bg-card px-6 py-2.5 text-sm text-muted-foreground">
+      <footer className="border-t bg-card px-6 py-2.5 text-sm text-muted-foreground print:hidden">
         {status === "connected"
           ? "Connected to on-device engine"
           : "Preview mode: engine not running (screens and flow still work)"}

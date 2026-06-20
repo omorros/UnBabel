@@ -1,6 +1,6 @@
 // Shared types + small helpers for the OffBabel UI.
 
-export type Screen = "home" | "speak" | "sign" | "progress"
+export type Screen = "home" | "speak" | "sign" | "progress" | "summary"
 export type Lang = "es" | "en" | "cs"
 export type Presence = "idle" | "listening" | "speaking" | "watching" | "celebrate"
 

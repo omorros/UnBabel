@@ -65,7 +65,7 @@ def get_llm():
         base_url=config.LLM_BASE_URL,
         api_key=config.LLM_API_KEY,
         max_retries=0,
-        timeout=httpx.Timeout(30.0, connect=2.0),
+        timeout=httpx.Timeout(30.0, connect=0.6),
     )
 
 
@@ -76,9 +76,13 @@ def tutor_turn(history, language, scenario=None, due_items=None):
     client = get_llm()
     sys = build_system_prompt(language, scenario, due_items or [])
     messages = [{"role": "system", "content": sys}] + history
-    resp = client.chat.completions.create(
-        model=config.LLM_MODEL, messages=messages, temperature=0.5
-    )
+    kwargs = dict(model=config.LLM_MODEL, messages=messages, temperature=0.3)
+    try:
+        # force valid JSON (Ollama + most OpenAI-compatible servers honor this); some endpoints
+        # (e.g. older Exo builds) may not, so fall back to a plain call.
+        resp = client.chat.completions.create(response_format={"type": "json_object"}, **kwargs)
+    except Exception:  # noqa: BLE001
+        resp = client.chat.completions.create(**kwargs)
     raw = resp.choices[0].message.content or ""
     data = _extract_json(raw) or {"reply": raw.strip()}
     data.setdefault("reply", "")
