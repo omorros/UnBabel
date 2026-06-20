@@ -216,10 +216,10 @@ export default function App() {
   )
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col overflow-hidden">
       <TopBar />
 
-      <main className="flex flex-1 flex-col px-6">
+      <main className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6">
         {screen === "home" && (
           <Home
             lang={lang}

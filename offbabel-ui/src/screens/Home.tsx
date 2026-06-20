@@ -18,12 +18,12 @@ export function Home({
 }) {
   const langLabel = LANGS.find((l) => l.value === lang)?.label ?? "your language"
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center py-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center py-6">
       <img
         src="/mascot.png"
         alt=""
         draggable={false}
-        className="mb-4 h-36 w-auto select-none"
+        className="mb-3 h-28 w-auto select-none"
       />
       <h1 className="text-center text-4xl font-semibold tracking-tight sm:text-5xl">
         One tool, two communities.
@@ -33,12 +33,12 @@ export function Home({
       </p>
 
       {/* Get started: pick the spoken language (Sign is always BSL) */}
-      <div className="mt-8 flex flex-col items-center gap-2">
+      <div className="mt-6 flex flex-col items-center gap-2">
         <span className="text-sm font-medium text-muted-foreground">Practice in</span>
         <LanguageToggle value={lang} onChange={onLang} />
       </div>
 
-      <div className="mt-8 grid w-full gap-5 sm:grid-cols-2">
+      <div className="mt-6 grid w-full gap-4 sm:grid-cols-2">
         <ModeCard
           onClick={onSpeak}
           Icon={Mic}
@@ -55,7 +55,7 @@ export function Home({
         />
       </div>
 
-      <Button variant="ghost" className="mt-6 h-11 text-base text-muted-foreground" onClick={onProgress}>
+      <Button variant="ghost" className="mt-5 h-11 text-base text-muted-foreground" onClick={onProgress}>
         View progress
       </Button>
     </div>
@@ -78,8 +78,8 @@ function ModeCard({
   return (
     <button
       onClick={onClick}
-      className="group rounded-2xl border bg-card p-7 text-left transition hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      style={{ minHeight: 184 }}
+      className="group rounded-2xl border bg-card p-6 text-left transition hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      style={{ minHeight: 150 }}
     >
       <span
         className="grid size-14 place-items-center rounded-xl"
@@ -87,7 +87,7 @@ function ModeCard({
       >
         <Icon className="size-7" strokeWidth={2} />
       </span>
-      <div className="mt-6 flex items-center gap-2">
+      <div className="mt-4 flex items-center gap-2">
         <span className="text-2xl font-semibold">{title}</span>
         <ArrowRight className="size-5 text-muted-foreground transition group-hover:translate-x-1" />
       </div>
