@@ -23,7 +23,7 @@ export function Home({
         src="/mascot.png"
         alt=""
         draggable={false}
-        className="mb-3 h-28 w-auto select-none"
+        className="mb-3 h-40 w-auto select-none"
       />
       <h1 className="text-center text-4xl font-semibold tracking-tight sm:text-5xl">
         One tool, two communities.
