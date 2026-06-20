@@ -82,6 +82,17 @@ def _review_for_ui():
     return out
 
 
+@app.on_event("startup")
+async def _maybe_connect_robot():
+    """On the Mac, run with OFFBABEL_ROBOT=1 to connect Reachy over the LAN at startup."""
+    if os.environ.get("OFFBABEL_ROBOT"):
+        try:
+            from . import robot
+            await asyncio.to_thread(robot.connect)
+        except Exception as e:  # noqa: BLE001
+            print("robot connect skipped:", e)
+
+
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
     await hub.connect(ws)
@@ -136,10 +147,32 @@ async def handle(msg):
 
 
 async def _handle_speak(msg):
-    """Run one tutor turn (real LLM if reachable, graceful stub if not) and update the SRS."""
-    text = msg.get("text", "")
-    lang = msg.get("language", "es")
-    scn_id = msg.get("scenario") or session.get("scenario")
+    await tutor_exchange(
+        msg.get("text", ""),
+        msg.get("language", "es"),
+        msg.get("scenario") or session.get("scenario"),
+    )
+
+
+async def _tts(text, lang):
+    """Best-effort speech output. No-op until speak_tts (Piper) is wired on the Mac."""
+    if not text:
+        return
+    try:
+        from . import speak
+        await asyncio.to_thread(speak.speak_tts, text, lang)
+    except NotImplementedError:
+        pass
+    except Exception as e:  # noqa: BLE001
+        print("tts failed (ignored):", e)
+
+
+async def tutor_exchange(text, lang, scn_id):
+    """One tutor turn -> transcript + correction + audio + SRS + summary.
+
+    Reusable seam: the push-to-talk path (once Whisper is wired on the Mac) transcribes the
+    mic audio to `text` and calls THIS function, so speech and text inputs share one path.
+    """
     scn = curriculum.scenario(scn_id) if scn_id else None
 
     await emote("listening")
@@ -171,13 +204,15 @@ async def _handle_speak(msg):
         if corr and corr.get("wrong"):
             srs.record_result("speak", scn["id"], scn["level"], corr["wrong"][:40], False)
 
-    await hub.send({"type": "transcript", "role": "tutor", "text": data.get("reply", "")})
+    reply = data.get("reply", "")
+    await hub.send({"type": "transcript", "role": "tutor", "text": reply})
     if data.get("correction"):
         await hub.send({"type": "correction", **data["correction"]})
     if scn:
         await hub.send({"type": "targets", "count": len(session["hits"])})
     await emote("idle")
     await hub.send({"type": "summary", "summary": srs.summary()})
+    asyncio.create_task(_tts(reply, lang))  # play audio concurrently (no-op until Piper is wired)
 
 
 # Serve the static UI with a catch-all (robust on Windows): return the file if it exists

@@ -24,7 +24,7 @@ Run a self-contained demo (on the Mac, once configured):
 """
 import asyncio
 
-from . import memory
+from . import srs
 
 DATASET = "offbabel_learner"
 
@@ -39,20 +39,21 @@ def available():
 
 def _to_sentence(it):
     """One struggle item -> a short natural-language fact for the graph to reason over."""
-    kind = it["type"]
-    val = it["value"]
-    lang = it["language"]
+    val = it["prompt"]
     miss = it["miss_count"]
-    if kind == "sign":
+    if it["mode"] == "sign":
         return f"The learner practised the BSL fingerspelling sign '{val}' and missed it {miss} times."
-    return f"In {lang}, the learner struggled with the word or phrase '{val}', missing it {miss} times."
+    return (
+        f"In a {it['scenario']} ({it['level']}) lesson, the learner struggled with "
+        f"'{val}', missing it {miss} times."
+    )
 
 
 async def sync_from_sqlite():
     """Push the current struggle data into Cognee and build the graph. Idempotent enough for a demo."""
     import cognee
 
-    items = [it for it in memory.all_items() if it["miss_count"] > 0]
+    items = [it for it in srs.all_items() if it["miss_count"] > 0]
     if not items:
         return 0
     for it in items:
@@ -83,11 +84,12 @@ async def _demo():
         print("cognee not installed. SQLite memory still works; this layer is the sponsor bonus.")
         return
     # seed a little data if the db is empty so the demo has something to show
-    if not [it for it in memory.all_items() if it["miss_count"] > 0]:
-        memory.log_miss("word", "es", "tener")
-        memory.log_miss("word", "es", "tener")
-        memory.log_miss("word", "es", "estar")
-        memory.log_miss("sign", "bsl", "O")
+    srs.init()
+    if not [it for it in srs.all_items() if it["miss_count"] > 0]:
+        srs.record_result("speak", "greetings", "A1", "tener", False)
+        srs.record_result("speak", "greetings", "A1", "tener", False)
+        srs.record_result("speak", "ordering_food", "A2", "estar", False)
+        srs.record_result("sign", "L1_vowels", "L1_vowels", "O", False)
     n = await sync_from_sqlite()
     print(f"synced {n} items into cognee")
     answer = await insight(
