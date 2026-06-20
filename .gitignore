@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OffBabel local data (models, recorded landmarks, sqlite memory)
+offbabel/data/
+*.sqlite
+*.joblib
+*.onnx
+*.onnx.json
+
+# Logs / OS
+*.log
+.DS_Store

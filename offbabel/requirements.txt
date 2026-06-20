@@ -1,0 +1,27 @@
+# OffBabel — install on venue wifi BEFORE going offline (pip needs the index).
+
+# --- Sign pipeline (works on Windows dev box AND the Mac) ---
+mediapipe
+opencv-python
+scikit-learn
+numpy
+pandas
+joblib
+
+# --- Speak pipeline (Mac demo machine) ---
+faster-whisper
+sounddevice
+piper-tts
+openai
+
+# --- Backend + UI ---
+fastapi
+uvicorn[standard]
+websockets
+
+# --- Memory ---
+# stdlib sqlite3 is the critical path. Cognee is the sponsor layer (configure offline per PRD 5):
+# cognee[fastembed]
+
+# --- Robot (Mac only) ---
+# reachy-mini   # install per Pollen docs on the Mac

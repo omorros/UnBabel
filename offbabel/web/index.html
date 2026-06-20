@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OffBabel</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">OffBabel</div>
+    <div class="badge" id="offline-badge">On-device &middot; No internet</div>
+    <label class="lang">
+      Language
+      <select id="lang-select">
+        <option value="es">Spanish</option>
+        <option value="en">English</option>
+        <option value="cs">Czech</option>
+      </select>
+    </label>
+  </header>
+
+  <main id="app">
+    <!-- HOME -->
+    <section class="screen active" data-screen="home">
+      <h1 class="tagline">One tool, two communities. No internet.</h1>
+      <div class="cards">
+        <button class="card" data-go="speak">
+          <span class="card-icon">🗣️</span>
+          <span class="card-title">Speak</span>
+          <span class="card-sub">Hold a conversation, get corrected</span>
+        </button>
+        <button class="card" data-go="sign">
+          <span class="card-icon">🤟</span>
+          <span class="card-title">Sign</span>
+          <span class="card-sub">Fingerspell BSL, get instant feedback</span>
+        </button>
+      </div>
+      <button class="ghost" data-go="progress">View progress</button>
+    </section>
+
+    <!-- SPEAK -->
+    <section class="screen" data-screen="speak">
+      <div class="screen-head">
+        <button class="back" data-go="home">&larr; Back</button>
+        <div class="avatar" id="avatar"><span id="avatar-state">idle</span></div>
+      </div>
+      <div id="transcript" class="transcript" aria-live="polite"></div>
+      <div id="correction" class="correction hidden"></div>
+      <div class="controls">
+        <button id="ptt" class="ptt">Hold to talk</button>
+        <form id="text-form" class="text-fallback">
+          <input id="text-input" type="text" placeholder="...or type here" autocomplete="off">
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SIGN -->
+    <section class="screen" data-screen="sign">
+      <div class="screen-head">
+        <button class="back" data-go="home">&larr; Back</button>
+        <div class="avatar" id="avatar-sign"><span>watching</span></div>
+      </div>
+      <div class="sign-grid">
+        <div class="target">
+          <div class="target-label">Spell</div>
+          <div class="word-strip" id="word-strip"></div>
+          <div class="now-letter" id="now-letter">H</div>
+        </div>
+        <div class="cam">
+          <div class="cam-frame" id="cam-frame">
+            <span class="cam-hint">webcam feed (Mac)</span>
+            <div class="detect-overlay" id="detect-overlay">--</div>
+          </div>
+          <div class="conf" id="conf-line">confidence: --</div>
+        </div>
+      </div>
+      <!-- click-test buttons (removed once the classifier is live) -->
+      <div class="demo-keys" id="demo-keys"></div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="screen" data-screen="progress">
+      <div class="screen-head">
+        <button class="back" data-go="home">&larr; Back</button>
+      </div>
+      <h2>Progress</h2>
+      <div class="stats" id="stats"></div>
+      <h3>Needs review</h3>
+      <ul class="review" id="review"></ul>
+    </section>
+  </main>
+
+  <footer class="statusbar" id="statusbar">connecting...</footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
