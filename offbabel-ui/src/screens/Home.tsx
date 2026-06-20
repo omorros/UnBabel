@@ -1,4 +1,4 @@
-import { ArrowRight, Hand, Mic } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { LanguageToggle } from "@/components/LanguageToggle"
 import { LANGS, type Lang } from "@/lib/offbabel"
@@ -41,15 +41,13 @@ export function Home({
       <div className="mt-6 grid w-full gap-4 sm:grid-cols-2">
         <ModeCard
           onClick={onSpeak}
-          Icon={Mic}
-          accent="var(--info)"
+          img="/mascot-speak.png"
           title="Speak"
           desc={`Conversation in ${langLabel}, corrected gently.`}
         />
         <ModeCard
           onClick={onSign}
-          Icon={Hand}
-          accent="var(--success)"
+          img="/mascot-sign.png"
           title="Sign"
           desc="Fingerspell British Sign Language to the camera."
         />
@@ -64,34 +62,34 @@ export function Home({
 
 function ModeCard({
   onClick,
-  Icon,
-  accent,
+  img,
   title,
   desc,
 }: {
   onClick: () => void
-  Icon: typeof Mic
-  accent: string
+  img: string
   title: string
   desc: string
 }) {
   return (
     <button
       onClick={onClick}
-      className="group rounded-2xl border bg-card p-6 text-left transition hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-      style={{ minHeight: 150 }}
+      className="group flex items-center gap-4 rounded-2xl border bg-card p-5 text-left transition hover:-translate-y-0.5 hover:border-foreground/20 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      style={{ minHeight: 128 }}
     >
-      <span
-        className="grid size-14 place-items-center rounded-xl"
-        style={{ color: accent, background: `color-mix(in oklab, var(--card) 86%, ${accent})` }}
-      >
-        <Icon className="size-7" strokeWidth={2} />
-      </span>
-      <div className="mt-4 flex items-center gap-2">
-        <span className="text-2xl font-semibold">{title}</span>
-        <ArrowRight className="size-5 text-muted-foreground transition group-hover:translate-x-1" />
+      <img
+        src={img}
+        alt=""
+        draggable={false}
+        className="h-24 w-auto shrink-0 select-none object-contain"
+      />
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-2xl font-semibold">{title}</span>
+          <ArrowRight className="size-5 text-muted-foreground transition group-hover:translate-x-1" />
+        </div>
+        <p className="mt-1.5 text-muted-foreground">{desc}</p>
       </div>
-      <p className="mt-1.5 text-muted-foreground">{desc}</p>
     </button>
   )
 }
