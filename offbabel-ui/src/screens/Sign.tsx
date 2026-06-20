@@ -2,27 +2,34 @@ import { ArrowLeft, Check, Hand } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Presence } from "@/components/Presence"
-import { DEMO_WORD, type Presence as PresenceState } from "@/lib/offbabel"
+import { levelSequence, type Presence as PresenceState, type SignLevel } from "@/lib/offbabel"
 
 export function Sign({
   presence,
+  level,
+  levels,
   index,
   detect,
+  onSelectLevel,
   onBack,
   onDemoLetter,
 }: {
   presence: PresenceState
+  level: SignLevel
+  levels: SignLevel[]
   index: number
   detect: { label: string; conf: number; stable: boolean }
+  onSelectLevel: (lv: SignLevel) => void
   onBack: () => void
   onDemoLetter: (letter: string) => void
 }) {
-  const letters = DEMO_WORD.split("")
-  const done = index >= letters.length
-  const target = done ? "✓" : letters[index]
-  const uniqueLetters = Array.from(new Set(letters))
+  const seq = levelSequence(level)
+  const done = index >= seq.length
+  const target = done ? "✓" : seq[index]
+  const uniqueLetters = Array.from(new Set(seq))
   const pct = Math.round((detect.conf || 0) * 100)
   const good = detect.stable || detect.conf >= 0.6
+  const isWord = level.kind === "words"
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-1 flex-col py-6">
@@ -34,12 +41,31 @@ export function Sign({
         <div className="w-[84px]" aria-hidden />
       </div>
 
-      <div className="mt-4 grid flex-1 gap-5 md:grid-cols-2">
-        {/* Target + word progress */}
+      {/* Skill levels */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-sm text-muted-foreground">Level</span>
+        {levels.map((lv) => (
+          <button
+            key={lv.id}
+            onClick={() => onSelectLevel(lv)}
+            className={
+              "rounded-full px-3 py-1 text-sm font-medium transition " +
+              (lv.id === level.id
+                ? "bg-foreground text-background"
+                : "bg-muted text-muted-foreground hover:text-foreground")
+            }
+          >
+            {lv.title}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 grid flex-1 gap-5 md:grid-cols-2">
+        {/* Target + progress */}
         <div className="flex flex-col rounded-2xl border bg-card p-7">
-          <div className="text-muted-foreground">Spell this word</div>
+          <div className="text-muted-foreground">{isWord ? "Spell this word" : "Sign each letter"}</div>
           <div className="mt-4 flex flex-wrap gap-2">
-            {letters.map((ch, i) => (
+            {seq.map((ch, i) => (
               <div
                 key={i}
                 className={
@@ -75,7 +101,10 @@ export function Sign({
               <div className="text-7xl font-bold" style={{ color: good ? "var(--success)" : "var(--foreground)" }}>
                 {detect.label}
               </div>
-              <div className="flex items-center gap-1.5 text-sm font-medium" style={{ color: good ? "var(--success)" : "var(--warning)" }}>
+              <div
+                className="flex items-center gap-1.5 text-sm font-medium"
+                style={{ color: good ? "var(--success)" : "var(--warning)" }}
+              >
                 {detect.stable ? <Check className="size-4" /> : null}
                 {detect.stable ? "Got it" : detect.label === "-" ? "Show your hands" : "Hold steady..."}
               </div>
@@ -98,7 +127,12 @@ export function Sign({
         </div>
         <div className="flex flex-wrap gap-2">
           {uniqueLetters.map((ch) => (
-            <Button key={ch} variant="outline" className="h-12 w-12 text-lg font-bold" onClick={() => onDemoLetter(ch)}>
+            <Button
+              key={ch}
+              variant="outline"
+              className="h-12 w-12 text-lg font-bold"
+              onClick={() => onDemoLetter(ch)}
+            >
               {ch}
             </Button>
           ))}

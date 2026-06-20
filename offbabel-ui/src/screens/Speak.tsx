@@ -1,21 +1,34 @@
 import { useState, type FormEvent } from "react"
-import { ArrowLeft, ArrowRight, Mic, Send } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Mic, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Presence } from "@/components/Presence"
-import type { Bubble, Correction, Presence as PresenceState } from "@/lib/offbabel"
+import type {
+  Bubble,
+  Correction,
+  Presence as PresenceState,
+  Scenario,
+} from "@/lib/offbabel"
 
 export function Speak({
   presence,
+  scenario,
+  scenarios,
+  hits,
   transcript,
   correction,
+  onSelectScenario,
   onBack,
   onSend,
   onPtt,
 }: {
   presence: PresenceState
+  scenario: Scenario
+  scenarios: Scenario[]
+  hits: number
   transcript: Bubble[]
   correction: Correction | null
+  onSelectScenario: (s: Scenario) => void
   onBack: () => void
   onSend: (text: string) => void
   onPtt: (active: boolean) => void
@@ -39,13 +52,58 @@ export function Speak({
         <div className="w-[84px]" aria-hidden />
       </div>
 
-      <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border bg-card p-4">
+      {/* Lesson header: scenario + level + lesson switcher */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="rounded-full bg-info/10 px-2.5 py-1 text-sm font-semibold text-info">
+          {scenario.level}
+        </span>
+        <span className="text-lg font-semibold">{scenario.title}</span>
+        <div className="ml-auto flex gap-1">
+          {scenarios.map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onSelectScenario(s)}
+              className={
+                "rounded-full px-2.5 py-1 text-xs font-medium transition " +
+                (s.id === scenario.id
+                  ? "bg-foreground text-background"
+                  : "bg-muted text-muted-foreground hover:text-foreground")
+              }
+            >
+              {s.level}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Target checklist: the goals the tutor steers you toward */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {scenario.targets.map((t, i) => {
+          const done = i < hits
+          return (
+            <span
+              key={t}
+              className={
+                "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition " +
+                (done
+                  ? "border-success/40 bg-success/10 text-success"
+                  : "border-border text-muted-foreground")
+              }
+            >
+              {done ? <Check className="size-3.5" /> : <span className="size-3.5 rounded-full border" />}
+              {t}
+            </span>
+          )
+        })}
+      </div>
+
+      <div className="mt-3 flex min-h-0 flex-1 flex-col overflow-y-auto rounded-2xl border bg-card p-4">
         {transcript.length === 0 ? (
           <div className="m-auto max-w-sm text-center text-muted-foreground">
             <p className="text-lg font-medium text-foreground">Your turn</p>
             <p className="mt-1">
-              Hold the button to talk, or type below. The tutor replies in your
-              chosen language and corrects gently.
+              Talk to the tutor (or type). It replies in {scenario.level} {""}
+              and steers you toward the goals above, correcting gently.
             </p>
           </div>
         ) : (

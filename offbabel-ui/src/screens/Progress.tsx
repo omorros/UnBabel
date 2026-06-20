@@ -1,14 +1,16 @@
-import { ArrowLeft, RotateCcw } from "lucide-react"
+import { ArrowLeft, Flame, Mic, Hand, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { ReviewItem } from "@/lib/offbabel"
+import { Progress as Bar } from "@/components/ui/progress"
+import type { LearnSummary, ReviewItem } from "@/lib/offbabel"
 
 export function Progress({
-  stats,
   review,
+  summary,
   onBack,
 }: {
   stats: { words: number; signs: number }
   review: ReviewItem[]
+  summary: LearnSummary
   onBack: () => void
 }) {
   return (
@@ -21,19 +23,40 @@ export function Progress({
 
       <h1 className="mt-4 text-3xl font-semibold tracking-tight">Progress</h1>
 
+      {/* streak + due */}
       <div className="mt-5 grid grid-cols-2 gap-4">
-        <Stat n={stats.words} label="words practiced" />
-        <Stat n={stats.signs} label="signs practiced" />
+        <div className="flex items-center gap-3 rounded-2xl border bg-card p-5">
+          <span className="grid size-12 place-items-center rounded-xl bg-warning/10 text-warning">
+            <Flame className="size-6" />
+          </span>
+          <div>
+            <div className="text-3xl font-semibold">{summary.streak}</div>
+            <div className="text-muted-foreground">day streak</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border bg-card p-5">
+          <span className="grid size-12 place-items-center rounded-xl bg-info/10 text-info">
+            <RotateCcw className="size-6" />
+          </span>
+          <div>
+            <div className="text-3xl font-semibold">{summary.dueToday}</div>
+            <div className="text-muted-foreground">due to review</div>
+          </div>
+        </div>
       </div>
 
-      <div className="mt-8 flex items-center gap-2">
-        <RotateCcw className="size-5 text-muted-foreground" />
-        <h2 className="text-xl font-semibold">Needs review</h2>
+      {/* mastery bars */}
+      <h2 className="mt-8 text-xl font-semibold">Mastery</h2>
+      <div className="mt-3 flex flex-col gap-4">
+        <MasteryBar Icon={Mic} accent="var(--info)" label="Speaking" pct={summary.masterySpeak} />
+        <MasteryBar Icon={Hand} accent="var(--success)" label="Signing" pct={summary.masterySign} />
       </div>
+
+      {/* needs review */}
+      <h2 className="mt-8 text-xl font-semibold">Needs review</h2>
       <p className="mt-1 text-muted-foreground">
         What you have struggled with most, kept on this device.
       </p>
-
       <ul className="mt-4 flex flex-col gap-2">
         {review.length === 0 ? (
           <li className="rounded-xl border bg-card px-4 py-4 text-muted-foreground">
@@ -62,11 +85,26 @@ export function Progress({
   )
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+function MasteryBar({
+  Icon,
+  accent,
+  label,
+  pct,
+}: {
+  Icon: typeof Mic
+  accent: string
+  label: string
+  pct: number
+}) {
   return (
-    <div className="rounded-2xl border bg-card p-6">
-      <div className="text-4xl font-semibold">{n}</div>
-      <div className="mt-1 text-muted-foreground">{label}</div>
+    <div className="rounded-2xl border bg-card p-5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-2 font-medium">
+          <Icon className="size-5" style={{ color: accent }} /> {label}
+        </span>
+        <span className="text-muted-foreground">{pct}% mastered</span>
+      </div>
+      <Bar value={pct} className="h-2.5" />
     </div>
   )
 }

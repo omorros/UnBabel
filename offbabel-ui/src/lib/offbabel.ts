@@ -19,7 +19,51 @@ export type ReviewItem = {
   miss_count: number
 }
 
-export const DEMO_WORD = "HELLO"
+// ---- Learning model (mirrors offbabel/curriculum.py for the UI) ----
+export type Scenario = { id: string; level: string; title: string; targets: string[] }
+export const SCENARIOS: Scenario[] = [
+  {
+    id: "greetings",
+    level: "A1",
+    title: "Greetings & introductions",
+    targets: ["Say hello", "Ask how someone is", "Say your name", "Say goodbye"],
+  },
+  {
+    id: "ordering_food",
+    level: "A2",
+    title: "Ordering food",
+    targets: ["Ask for the menu", "Order a dish", "Ask the price", "Ask for the bill"],
+  },
+  {
+    id: "making_plans",
+    level: "B1",
+    title: "Making plans",
+    targets: ["Suggest an activity", "Agree or disagree", "Propose a time", "Give a reason"],
+  },
+]
+
+export type SignLevel = { id: string; title: string; kind: "letters" | "words"; items: string[] }
+export const SIGN_LEVELS: SignLevel[] = [
+  { id: "L1", title: "Vowels", kind: "letters", items: ["A", "E", "I", "O", "U"] },
+  { id: "L2", title: "Distinct", kind: "letters", items: ["B", "C", "L", "R", "T"] },
+  { id: "L3", title: "Words", kind: "words", items: ["HELLO", "CAT", "DOG"] },
+]
+export function levelSequence(lv: SignLevel): string[] {
+  return lv.kind === "words" ? lv.items[0].split("") : lv.items
+}
+
+export type LearnSummary = {
+  streak: number
+  dueToday: number
+  masterySpeak: number // 0..100
+  masterySign: number
+}
+export const SAMPLE_SUMMARY: LearnSummary = {
+  streak: 3,
+  dueToday: 4,
+  masterySpeak: 35,
+  masterySign: 20,
+}
 
 // Sample content so every screen reads well even with no backend (flow-testing).
 export const SAMPLE_REVIEW: ReviewItem[] = [
