@@ -1,68 +1,61 @@
-import { ArrowRight, BarChart3, Flame, Hand, Mic, RotateCcw } from "lucide-react"
+import { ArrowRight, Hand, Mic } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { LearnSummary } from "@/lib/offbabel"
+import { LanguageToggle } from "@/components/LanguageToggle"
+import { LANGS, type Lang } from "@/lib/offbabel"
 
 export function Home({
-  summary,
+  lang,
+  onLang,
   onSpeak,
   onSign,
-  onContinue,
   onProgress,
 }: {
-  summary: LearnSummary
+  lang: Lang
+  onLang: (l: Lang) => void
   onSpeak: () => void
   onSign: () => void
-  onContinue: () => void
   onProgress: () => void
 }) {
+  const langLabel = LANGS.find((l) => l.value === lang)?.label ?? "your language"
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center py-10">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col items-center justify-center py-10">
       <img
         src="/mascot.png"
         alt=""
         draggable={false}
-        className="mx-auto mb-4 h-36 w-auto select-none"
+        className="mb-4 h-36 w-auto select-none"
       />
       <h1 className="text-center text-4xl font-semibold tracking-tight sm:text-5xl">
         One tool, two communities.
       </h1>
-      <p className="mx-auto mt-4 max-w-xl text-center text-lg text-muted-foreground">
-        Learn a language by speaking, or practice sign language by fingerspelling.
-        Everything runs on this device, with no internet.
+      <p className="mt-3 max-w-xl text-center text-lg text-muted-foreground">
+        Practice a language by speaking, or sign language by fingerspelling. On-device, no internet.
       </p>
 
-      {/* Today: spaced-repetition status + continue */}
-      <div className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-4">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/10 px-3 py-1.5 font-medium text-warning">
-          <Flame className="size-4" /> {summary.streak}-day streak
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-info/10 px-3 py-1.5 font-medium text-info">
-          <RotateCcw className="size-4" /> {summary.dueToday} to review today
-        </span>
-        <Button className="ml-auto h-11 gap-2" onClick={onContinue}>
-          Continue learning <ArrowRight className="size-4" />
-        </Button>
+      {/* Get started: pick the spoken language (Sign is always BSL) */}
+      <div className="mt-8 flex flex-col items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">Practice in</span>
+        <LanguageToggle value={lang} onChange={onLang} />
       </div>
 
-      <div className="mt-5 grid w-full gap-5 sm:grid-cols-2">
+      <div className="mt-8 grid w-full gap-5 sm:grid-cols-2">
         <ModeCard
           onClick={onSpeak}
           Icon={Mic}
           accent="var(--info)"
           title="Speak"
-          desc="Hold a conversation and get gently corrected."
+          desc={`Conversation in ${langLabel}, corrected gently.`}
         />
         <ModeCard
           onClick={onSign}
           Icon={Hand}
           accent="var(--success)"
           title="Sign"
-          desc="Fingerspell BSL to the camera, letter by letter."
+          desc="Fingerspell British Sign Language to the camera."
         />
       </div>
 
-      <Button variant="ghost" className="mx-auto mt-6 h-12 gap-2 text-base" onClick={onProgress}>
-        <BarChart3 className="size-5" />
+      <Button variant="ghost" className="mt-6 h-11 text-base text-muted-foreground" onClick={onProgress}>
         View progress
       </Button>
     </div>

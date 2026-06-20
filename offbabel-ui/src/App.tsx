@@ -6,9 +6,8 @@ import { Sign } from "@/screens/Sign"
 import { Progress } from "@/screens/Progress"
 import { useSocket } from "@/hooks/useSocket"
 import {
+  EMPTY_SUMMARY,
   levelSequence,
-  SAMPLE_REVIEW,
-  SAMPLE_SUMMARY,
   SCENARIOS,
   SIGN_LEVELS,
   type Bubble,
@@ -66,7 +65,7 @@ export default function App() {
 
   const [stats, setStats] = useState({ words: 0, signs: 0 })
   const [review, setReview] = useState<ReviewItem[]>([])
-  const [summary, setSummary] = useState(SAMPLE_SUMMARY)
+  const [summary, setSummary] = useState(EMPTY_SUMMARY)
 
   const applyDetection = useCallback((label: string, conf: number, stable: boolean) => {
     setDetect({ label, conf, stable })
@@ -155,9 +154,6 @@ export default function App() {
       if (connected) {
         send({ type: "set_mode", mode: s })
         if (s === "progress") send({ type: "get_progress" })
-      } else if (s === "progress") {
-        setReview(SAMPLE_REVIEW)
-        setStats((st) => (st.words || st.signs ? st : { words: 12, signs: 8 }))
       }
     },
     [connected, send, scenario, signLevel, startSpeak, startSign]
@@ -206,21 +202,23 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <TopBar lang={lang} onLang={setLang} />
+      <TopBar />
 
       <main className="flex flex-1 flex-col px-6">
         {screen === "home" && (
           <Home
-            summary={summary}
+            lang={lang}
+            onLang={setLang}
             onSpeak={() => startSpeak(scenario)}
             onSign={() => startSign(signLevel)}
-            onContinue={() => startSpeak(SCENARIOS[0])}
             onProgress={() => go("progress")}
           />
         )}
         {screen === "speak" && (
           <Speak
             presence={presence}
+            lang={lang}
+            onLang={setLang}
             scenario={scenario}
             scenarios={SCENARIOS}
             hits={hits}

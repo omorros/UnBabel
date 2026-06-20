@@ -100,15 +100,20 @@ def due_count(mode=None, now=None):
 
 
 def mastery(mode=None):
-    q = "SELECT COUNT(*) total, COALESCE(SUM(mastered),0) mastered FROM items"
+    """pct = average progress toward mastery (box 1 -> 0%, box 5 -> 100%), so the bar moves
+    as you practice. `mastered` counts fully-mastered (box 5) items."""
+    q = "SELECT box, mastered FROM items"
     args = []
     if mode:
         q += " WHERE mode=?"
         args.append(mode)
     with _conn() as c:
-        r = c.execute(q, args).fetchone()
-    total, mastered = r["total"], r["mastered"]
-    pct = round(100 * mastered / total) if total else 0
+        rows = c.execute(q, args).fetchall()
+    total = len(rows)
+    if not total:
+        return {"total": 0, "mastered": 0, "pct": 0}
+    mastered = sum(1 for r in rows if r["mastered"])
+    pct = round(100 * sum((r["box"] - 1) / (MASTER_BOX - 1) for r in rows) / total)
     return {"total": total, "mastered": mastered, "pct": pct}
 
 

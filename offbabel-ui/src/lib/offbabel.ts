@@ -60,17 +60,11 @@ export type LearnSummary = {
   masterySpeak: number // 0..100
   masterySign: number
 }
-export const SAMPLE_SUMMARY: LearnSummary = {
-  streak: 3,
-  dueToday: 4,
-  masterySpeak: 35,
-  masterySign: 20,
+// Honest defaults: everything starts at zero and only grows as you actually practice
+// (the real numbers come from the spaced-repetition engine when the backend is running).
+export const EMPTY_SUMMARY: LearnSummary = {
+  streak: 0,
+  dueToday: 0,
+  masterySpeak: 0,
+  masterySign: 0,
 }
-
-// Sample content so every screen reads well even with no backend (flow-testing).
-export const SAMPLE_REVIEW: ReviewItem[] = [
-  { type: "word", language: "es", value: "tener", miss_count: 3 },
-  { type: "sign", language: "bsl", value: "O", miss_count: 2 },
-  { type: "word", language: "es", value: "estar", miss_count: 2 },
-  { type: "word", language: "cs", value: "děkuji", miss_count: 1 },
-]

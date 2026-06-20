@@ -3,15 +3,19 @@ import { ArrowLeft, ArrowRight, Check, Mic, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Presence } from "@/components/Presence"
+import { LanguageToggle } from "@/components/LanguageToggle"
 import type {
   Bubble,
   Correction,
+  Lang,
   Presence as PresenceState,
   Scenario,
 } from "@/lib/offbabel"
 
 export function Speak({
   presence,
+  lang,
+  onLang,
   scenario,
   scenarios,
   hits,
@@ -23,6 +27,8 @@ export function Speak({
   onPtt,
 }: {
   presence: PresenceState
+  lang: Lang
+  onLang: (l: Lang) => void
   scenario: Scenario
   scenarios: Scenario[]
   hits: number
@@ -49,7 +55,7 @@ export function Speak({
           <ArrowLeft className="size-5" /> Back
         </Button>
         <Presence state={presence} size={84} />
-        <div className="w-[84px]" aria-hidden />
+        <LanguageToggle value={lang} onChange={onLang} />
       </div>
 
       {/* Lesson header: scenario + level + lesson switcher */}
