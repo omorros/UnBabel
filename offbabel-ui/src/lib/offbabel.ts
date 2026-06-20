@@ -4,10 +4,10 @@ export type Screen = "home" | "speak" | "sign" | "progress"
 export type Lang = "es" | "en" | "cs"
 export type Presence = "idle" | "listening" | "speaking" | "watching" | "celebrate"
 
-export const LANGS: { value: Lang; label: string }[] = [
-  { value: "es", label: "Spanish" },
-  { value: "en", label: "English" },
-  { value: "cs", label: "Czech" },
+export const LANGS: { value: Lang; label: string; flag: string }[] = [
+  { value: "es", label: "Spanish", flag: "🇪🇸" },
+  { value: "en", label: "English", flag: "🇬🇧" },
+  { value: "cs", label: "Czech", flag: "🇨🇿" },
 ]
 
 export type Bubble = { role: "user" | "tutor"; text: string }

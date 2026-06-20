@@ -1,13 +1,7 @@
 import { WifiOff } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { LANGS, type Lang } from "@/lib/offbabel"
+import { LanguageToggle } from "@/components/LanguageToggle"
+import { type Lang } from "@/lib/offbabel"
 
 export function TopBar({
   lang,
@@ -27,20 +21,8 @@ export function TopBar({
         <WifiOff className="size-3.5" />
         On-device · No internet
       </Badge>
-      <div className="ml-auto flex items-center gap-2 text-sm text-muted-foreground">
-        <span>Language</span>
-        <Select value={lang} onValueChange={(v) => onLang(v as Lang)}>
-          <SelectTrigger className="w-32" aria-label="Language">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LANGS.map((l) => (
-              <SelectItem key={l.value} value={l.value}>
-                {l.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="ml-auto">
+        <LanguageToggle value={lang} onChange={onLang} />
       </div>
     </header>
   )
