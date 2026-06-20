@@ -1,32 +1,52 @@
-"""Cognee sponsor layer: graph + semantic memory ON TOP of the SQLite source of truth.
+"""Cognee layer: graph + semantic memory ON TOP of the SQLite source of truth.
 
 Additive and optional. If cognee is missing or unconfigured, OffBabel still works fully via
-memory.py. This layer is the shot at the Cognee prize (PRD 9): a literal picture of the
-learner's memory graph + a semantic query that plain key-value cannot do.
+srs.py/memory.py. This is the shot at the Cognee prize: a literal picture of the learner's
+memory graph + a semantic query that plain key-value storage cannot answer.
 
-OFFLINE CONFIG (set on the Mac AFTER caching, BEFORE first import). Easiest is a .env, or export:
-    LLM_PROVIDER=ollama
-    LLM_MODEL=llama3.1:8b
-    LLM_ENDPOINT=http://localhost:11434/v1
-    LLM_API_KEY=ollama                       # non-empty (works around cognee issue #807)
-    STRUCTURED_OUTPUT_FRAMEWORK=BAML         # robust JSON from small local models
-    BAML_LLM_PROVIDER=ollama
-    BAML_LLM_MODEL=llama3.1:8b
-    BAML_LLM_ENDPOINT=http://localhost:11434/v1
-    BAML_LLM_API_KEY=ollama
-    EMBEDDING_PROVIDER=fastembed
-    EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-    EMBEDDING_DIMENSIONS=384
-Pre-pull the Ollama model and let fastembed cache its ONNX weights on wifi, then test offline.
+This module SELF-CONFIGURES for fully-offline use (local Ollama LLM + in-process fastembed
+embeddings). You do not need a .env. Override any default with env vars if you want.
 
-Run a self-contained demo (on the Mac, once configured):
-    python -m offbabel.cognee_memory
+RUN IT (on the demo machine, e.g. the Mac):
+    brew install ollama && ollama serve &           # local LLM (Linux/Win: install Ollama)
+    ollama pull llama3.1:8b                          # the cognify model (or set OFFBABEL_COGNEE_MODEL)
+    pip install "cognee[fastembed]"
+    python -m offbabel.cognee_memory                 # builds the graph + writes graph.html
+Pull the model + let fastembed cache its weights on wifi once, then it runs offline.
 """
 import asyncio
-
-from . import srs
+import os
 
 DATASET = "offbabel_learner"
+
+
+def configure():
+    """Set Cognee to run fully local/offline. Called at import, before cognee is loaded.
+    Everything is os.environ.setdefault, so real env vars still win."""
+    model = os.environ.get("OFFBABEL_COGNEE_MODEL", "llama3.1:8b")
+    endpoint = os.environ.get("OFFBABEL_OLLAMA", "http://localhost:11434/v1")
+    defaults = {
+        # LLM for cognify + search -> local Ollama
+        "LLM_PROVIDER": "ollama",
+        "LLM_MODEL": model,
+        "LLM_ENDPOINT": endpoint,
+        "LLM_API_KEY": "ollama",  # must be non-empty (cognee issue #807)
+        # robust structured output from local models
+        "STRUCTURED_OUTPUT_FRAMEWORK": "BAML",
+        "BAML_LLM_PROVIDER": "ollama",
+        "BAML_LLM_MODEL": model,
+        "BAML_LLM_ENDPOINT": endpoint,
+        "BAML_LLM_API_KEY": "ollama",
+        # embeddings in-process, no server, no OpenAI
+        "EMBEDDING_PROVIDER": "fastembed",
+        "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2",
+        "EMBEDDING_DIMENSIONS": "384",
+    }
+    for k, v in defaults.items():
+        os.environ.setdefault(k, v)
+
+
+configure()  # before any cognee import below
 
 
 def available():
@@ -50,8 +70,9 @@ def _to_sentence(it):
 
 
 async def sync_from_sqlite():
-    """Push the current struggle data into Cognee and build the graph. Idempotent enough for a demo."""
+    """Push the current struggle data into Cognee and build the graph."""
     import cognee
+    from . import srs
 
     items = [it for it in srs.all_items() if it["miss_count"] > 0]
     if not items:
@@ -81,24 +102,33 @@ def visualize(path="graph.html"):
 
 async def _demo():
     if not available():
-        print("cognee not installed. SQLite memory still works; this layer is the sponsor bonus.")
+        print("cognee not installed (pip install 'cognee[fastembed]'). SQLite memory still works.")
         return
-    # seed a little data if the db is empty so the demo has something to show
+    from . import srs
+
     srs.init()
     if not [it for it in srs.all_items() if it["miss_count"] > 0]:
+        # seed a little data so the graph has something to show
         srs.record_result("speak", "greetings", "A1", "tener", False)
         srs.record_result("speak", "greetings", "A1", "tener", False)
         srs.record_result("speak", "ordering_food", "A2", "estar", False)
-        srs.record_result("sign", "L1_vowels", "L1_vowels", "O", False)
-    n = await sync_from_sqlite()
-    print(f"synced {n} items into cognee")
-    answer = await insight(
-        "What kinds of things does this learner struggle with most, and what should they review next?"
-    )
-    print("INSIGHT:", answer)
+        srs.record_result("sign", "letters_abgw", "letters_abgw", "G", False)
+    try:
+        n = await sync_from_sqlite()
+        print(f"synced {n} struggle items into Cognee")
+    except Exception as e:  # noqa: BLE001
+        print("cognify failed (is Ollama running with the model pulled?):", e)
+        return
+    try:
+        answer = await insight(
+            "What kinds of things does this learner struggle with most, and what to review next?"
+        )
+        print("INSIGHT:", answer)
+    except Exception as e:  # noqa: BLE001
+        print("search failed:", e)
     try:
         visualize("graph.html")
-        print("wrote graph.html")
+        print("wrote graph.html (open it to see the learner's memory graph)")
     except Exception as e:  # noqa: BLE001
         print("visualize skipped:", e)
 
