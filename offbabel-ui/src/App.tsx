@@ -57,6 +57,7 @@ export default function App() {
   const [transcript, setTranscript] = useState<Bubble[]>([])
   const [correction, setCorrection] = useState<Correction | null>(null)
   const [mistakes, setMistakes] = useState<Correction[]>([]) // accumulated for the review sheet
+  const [thinking, setThinking] = useState(false) // tutor is generating a reply
 
   // Sign lesson state
   const [signLevel, setSignLevel] = useState<SignLevel>(SIGN_LEVELS[0])
@@ -97,6 +98,7 @@ export default function App() {
           break
         case "transcript":
           if (m.role === "user") setCorrection(null) // a new turn clears the previous correction
+          setThinking(m.role === "user") // user turn -> waiting for tutor; tutor reply -> done
           setTranscript((t) => [...t, { role: m.role, text: m.text, translation: m.translation }])
           break
         case "correction": {
@@ -134,8 +136,10 @@ export default function App() {
       setPresence("idle")
       setScreen("speak")
       // Reachy opens the conversation server-side (the greeting arrives as a tutor transcript).
-      if (connected)
+      if (connected) {
+        setThinking(true)
         send({ type: "set_mode", mode: "speak", scenario: scn.id, level: scn.level, language: lang })
+      }
     },
     [connected, send, lang]
   )
@@ -172,16 +176,19 @@ export default function App() {
     (text: string) => {
       if (connected) {
         send({ type: "speak_text", text, language: lang, scenario: scenario.id })
+        setThinking(true)
         return
       }
       const nh = Math.min(hitsRef.current + 1, scenario.targets.length)
       hitsRef.current = nh
       setHits(nh)
       setTranscript((t) => [...t, { role: "user", text }])
+      setThinking(true)
       setPresence("speaking")
       setStats((s) => ({ ...s, words: s.words + 1 }))
       const complete = nh >= scenario.targets.length
       window.setTimeout(() => {
+        setThinking(false)
         setTranscript((t) => [...t, { role: "tutor", text: complete ? LESSON_DONE[lang] : REPLY[lang] }])
         if (complete) {
           setCorrection(null)
@@ -246,6 +253,7 @@ export default function App() {
             presence={presence}
             lang={lang}
             onLang={setLang}
+            thinking={thinking}
             scenario={scenario}
             scenarios={SCENARIOS}
             hits={hits}

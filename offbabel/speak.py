@@ -92,15 +92,22 @@ def tutor_turn(history, language, scenario=None, due_items=None):
     return data
 
 
-def transcribe(audio, language):
-    """TODO (Mac): faster-whisper 'small' int8, load once at startup.
+_WHISPER = None
 
-    from faster_whisper import WhisperModel
-    _MODEL = WhisperModel(config.WHISPER_SIZE, device="cpu", compute_type="int8")
-    segments, _ = _MODEL.transcribe(audio, language=language)
+
+def _get_whisper():
+    global _WHISPER
+    if _WHISPER is None:
+        from faster_whisper import WhisperModel
+        _WHISPER = WhisperModel(config.WHISPER_SIZE, device="cpu", compute_type="int8")
+    return _WHISPER
+
+
+def transcribe(audio, language):
+    """audio: float32 mono numpy array at 16 kHz. Returns the recognized text."""
+    model = _get_whisper()
+    segments, _ = model.transcribe(audio, language=language, vad_filter=True)
     return " ".join(s.text for s in segments).strip()
-    """
-    raise NotImplementedError("wire faster-whisper on the Mac")
 
 
 def speak_tts(text, language):

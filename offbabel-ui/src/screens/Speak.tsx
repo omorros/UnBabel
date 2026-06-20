@@ -10,6 +10,7 @@ export function Speak({
   presence,
   lang,
   onLang,
+  thinking,
   scenario,
   scenarios,
   hits,
@@ -24,6 +25,7 @@ export function Speak({
   presence: PresenceState
   lang: Lang
   onLang: (l: Lang) => void
+  thinking: boolean
   scenario: Scenario
   scenarios: Scenario[]
   hits: number
@@ -88,7 +90,21 @@ export function Speak({
 
       {/* Current exchange as subtitles (no scroll) */}
       <div className="mt-4 flex flex-1 flex-col items-center justify-center gap-5 rounded-2xl border bg-card px-6 py-6 text-center">
-        {!lastTutor ? (
+        {thinking ? (
+          <div className="flex flex-col items-center gap-3">
+            {lastUser && (
+              <div className="max-w-lg text-sm text-muted-foreground">You said: "{lastUser.text}"</div>
+            )}
+            <div className="flex items-center gap-2 text-2xl font-medium text-muted-foreground">
+              Reachy is thinking
+              <span className="inline-flex gap-1">
+                <span className="size-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
+                <span className="size-2 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
+                <span className="size-2 animate-bounce rounded-full bg-muted-foreground" />
+              </span>
+            </div>
+          </div>
+        ) : !lastTutor ? (
           <div className="max-w-sm text-muted-foreground">
             <p className="text-lg font-medium text-foreground">Talking to Reachy</p>
             <p className="mt-1">

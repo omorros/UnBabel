@@ -15,6 +15,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 
 from . import config, curriculum, speak, srs
+from .listen import SpeakListener
 from .sign.engine import SignEngine
 
 # Prefer the built React UI; fall back to the vanilla shell during early dev.
@@ -25,6 +26,7 @@ WEB_DIR = _DIST if os.path.isdir(_DIST) else os.path.abspath(os.path.join(config
 app = FastAPI()
 srs.init()
 sign_engine = SignEngine()
+listener = SpeakListener()
 
 # best-effort robot: a missing or offline robot must never crash the demo
 try:
@@ -109,6 +111,7 @@ async def handle(msg):
 
     if t == "set_mode":
         mode = msg.get("mode")
+        listener.stop()  # stop any mic listener on a mode change
         await emote("idle")
         await hub.send({"type": "mode", "mode": mode})
         if mode == "speak":
@@ -150,10 +153,17 @@ async def handle(msg):
         session["history"].append({"role": "user", "content": speak.HELP_DIRECTIVE})
         await _run_tutor(help_turn=True)
 
-    elif t in ("conversation_start", "conversation_stop"):
-        # Seam (Mac): start/stop the mic + VAD listening loop. For each detected utterance:
-        # text = speak.transcribe(...); session["history"].append user turn; await _run_tutor().
-        await emote("listening" if t == "conversation_start" else "idle")
+    elif t == "conversation_start":
+        loop = asyncio.get_running_loop()
+        listener.start(
+            lambda text: asyncio.run_coroutine_threadsafe(_voice_turn(text), loop),
+            session.get("lang", "es"),
+        )
+        await emote("listening")
+
+    elif t == "conversation_stop":
+        listener.stop()
+        await emote("idle")
 
     elif t == "sign_demo_letter":
         letter = msg.get("label", "")
@@ -165,6 +175,14 @@ async def handle(msg):
 
     elif t == "celebrate":
         await emote("happy")
+
+
+async def _voice_turn(text):
+    """A transcribed mic utterance -> the same path as a typed message."""
+    await hub.send({"type": "transcript", "role": "user", "text": text})
+    session["history"].append({"role": "user", "content": text})
+    session["turn"] = session.get("turn", 0) + 1
+    await _run_tutor()
 
 
 async def _tts(text, lang):
