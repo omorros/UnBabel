@@ -10,11 +10,12 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(__dirname, "./src") } },
   build: { outDir: "dist" },
-  // Dev only: proxy the WebSocket to the Python backend if it is running on :8500.
+  // Dev only: proxy the WebSocket + Reachy camera stream to the Python backend on :8500.
   // The UI works standalone without it (screens are navigable; interactions simulate locally).
   server: {
     proxy: {
       "/ws": { target: "ws://127.0.0.1:8500", ws: true },
+      "/reachy-media": { target: "http://127.0.0.1:8500", changeOrigin: true },
     },
   },
 })

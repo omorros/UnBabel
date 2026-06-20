@@ -21,6 +21,16 @@ DEBOUNCE_FRAMES = int(os.environ.get("OFFBABEL_DEBOUNCE", "12"))  # frames of ag
 CONF_THRESHOLD = float(os.environ.get("OFFBABEL_CONF", "0.55"))   # min predict_proba to count a frame
 NEG_LABEL = "_"  # "nothing / junk" class — helps reject noise
 
+# ---- Reachy Mini live camera (Sign screen) ----
+# The robot has no RTSP server, so we run rpicam-vid on the robot over SSH (MJPEG to stdout) and
+# reparse it into a browser MJPEG endpoint. REACHY_SSH_HOST may be an ~/.ssh/config alias or
+# "user@host". Default resolution is 640x360 (light over SSH, ample for the Sign panel); bump to
+# 1280x720 via env if the LAN can spare the bandwidth.
+REACHY_SSH_HOST = os.environ.get("OFFBABEL_REACHY_SSH", "pollen@reachy-mini.local")
+REACHY_CAM_WIDTH = int(os.environ.get("OFFBABEL_REACHY_CAM_W", "640"))
+REACHY_CAM_HEIGHT = int(os.environ.get("OFFBABEL_REACHY_CAM_H", "360"))
+REACHY_CAM_FPS = int(os.environ.get("OFFBABEL_REACHY_CAM_FPS", "30"))
+
 # ---- LLM (Speak) ----
 # Exo on the Mac at :52415 is the demo engine; Ollama is the one-line fallback (also used by Cognee).
 EXO_BASE_URL = "http://localhost:52415/v1"

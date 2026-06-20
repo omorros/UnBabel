@@ -1,7 +1,8 @@
-import { ArrowLeft, Check, Hand } from "lucide-react"
+import { ArrowLeft, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Presence } from "@/components/Presence"
+import { ReachyVideo } from "@/components/ReachyVideo"
 import { levelSequence, type Presence as PresenceState, type SignLevel } from "@/lib/offbabel"
 
 export function Sign({
@@ -100,22 +101,25 @@ export function Sign({
 
         {/* Detection panel */}
         <div className="flex flex-col rounded-2xl border bg-card p-7">
-          <div className="text-muted-foreground">Camera (on device)</div>
-          <div className="mt-4 grid flex-1 place-items-center rounded-xl border border-dashed bg-muted/40">
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <Hand className="size-10 text-muted-foreground" />
-              <div className="text-7xl font-bold" style={{ color: good ? "var(--success)" : "var(--foreground)" }}>
+          <div className="text-muted-foreground">Camera (Reachy Mini)</div>
+          <ReachyVideo className="mt-4">
+            {/* Detection result overlaid on the live robot feed */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-1 bg-gradient-to-t from-black/60 to-transparent px-4 pb-4 pt-10 text-center">
+              <div
+                className="text-7xl font-bold leading-none drop-shadow"
+                style={{ color: good ? "var(--success)" : "#fff" }}
+              >
                 {detect.label}
               </div>
               <div
-                className="flex items-center gap-1.5 text-sm font-medium"
-                style={{ color: good ? "var(--success)" : "var(--warning)" }}
+                className="flex items-center gap-1.5 text-sm font-medium text-white"
+                style={{ color: good ? "var(--success)" : undefined }}
               >
                 {detect.stable ? <Check className="size-4" /> : null}
                 {detect.stable ? "Got it" : detect.label === "-" ? "Show your hands" : "Hold steady..."}
               </div>
             </div>
-          </div>
+          </ReachyVideo>
           <div className="mt-4">
             <div className="mb-1 flex justify-between text-sm text-muted-foreground">
               <span>Confidence</span>

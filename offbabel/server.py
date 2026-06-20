@@ -11,8 +11,8 @@ import asyncio
 import json
 import os
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse, StreamingResponse
 
 from . import config, curriculum, speak, srs
 from .listen import SpeakListener
@@ -289,6 +289,44 @@ async def _run_tutor(help_turn=False):
     await emote("idle")
     await hub.send({"type": "summary", "summary": srs.summary()})
     asyncio.create_task(_tts(reply, lang))  # plays concurrently (no-op until Piper is wired)
+
+
+# ---- Reachy Mini live camera (consumed by the Sign screen's <img>) ----
+# Defined BEFORE the catch-all spa() route below, which would otherwise swallow these paths.
+
+@app.get("/reachy-media/video.mjpeg")
+async def reachy_video(request: Request):
+    """Stream the robot camera as multipart MJPEG. A plain <img src> renders it directly."""
+    from .reachy_video import streamer
+    streamer.add_client()
+
+    async def frames():
+        last = None
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+                frame = streamer.get_latest_frame()
+                if frame is not None and frame is not last:
+                    last = frame
+                    yield (b"--frame\r\nContent-Type: image/jpeg\r\n"
+                           + f"Content-Length: {len(frame)}\r\n\r\n".encode("ascii")
+                           + frame + b"\r\n")
+                await asyncio.sleep(0.03)  # ~30fps ceiling; we send only new frames
+        finally:
+            streamer.remove_client()  # last viewer leaving stops the shared SSH stream
+
+    return StreamingResponse(
+        frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache", "Expires": "0"},
+    )
+
+
+@app.get("/reachy-media/video/status")
+async def reachy_video_status():
+    from .reachy_video import streamer
+    return streamer.status()
 
 
 # Serve the static UI with a catch-all (robust on Windows): return the file if it exists
