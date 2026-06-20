@@ -1,0 +1,9 @@
+# speech -> agent spike. Install on venue wifi BEFORE going offline (pip needs the index).
+faster-whisper      # STT — runs on the Windows dev box AND the Mac (CPU int8)
+sounddevice         # push-to-talk mic capture (PortAudio)
+scipy               # resample the device's native rate (e.g. 48kHz) -> 16kHz for Whisper
+numpy
+openai              # OpenAI-compatible client for Exo (:52415) or Ollama (:11434)
+json-repair         # salvage near-miss JSON from the tiny model (Exo does NOT enforce schemas)
+requests            # Reachy daemon HTTP API — TTS upload/play via reachy_speaker.py
+# System deps (not pip): `brew install ffmpeg` (ffmpeg + ffprobe), macOS `say` is built in.
